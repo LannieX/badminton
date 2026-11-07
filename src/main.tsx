@@ -1,21 +1,8 @@
-import RacketMark from './components/racket-mark';
-import AppBackground from './components/app-background';
 import ExpenseModule from './components/expense-module';
 import { ValidatedForm } from './components/validated-form';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createPortal } from 'react-dom';
-import {
-  CircleAlert,
-  Activity,
-  ArrowUpRight,
-  ChevronRight,
-  Clock3,
-  History,
-  Plus,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { ArrowUpRight, Plus } from 'lucide-react';
 import ScoreModule from './components/score-module';
 import { read, save, today, uid, winner, score, type Data, type Session } from './lib/store';
 import { api, ApiError } from './lib/api';
@@ -24,13 +11,11 @@ import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
 import { Card } from './components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from './components/ui/dialog';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from './components/ui/select';
+import { AppLayout, type AppTab } from './components/app-layout';
+import { SectionHeading } from './components/section-heading';
+import { SessionPicker } from './components/session-picker';
+import { HistorySessionCard } from './components/history-session-card';
+import { ToastNotification } from './components/toast-notification';
 import '@fontsource/kanit/300.css';
 import '@fontsource/kanit/400.css';
 import '@fontsource/kanit/500.css';
@@ -38,8 +23,6 @@ import '@fontsource/kanit/600.css';
 import '@fontsource/kanit/700.css';
 import '@fontsource/kanit/900.css';
 import './styles.css';
-const money = (n: number) =>
-  n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function App() {
   const [data, setData] = useState<Data>(read);
   const [saving, setSaving] = useState(false);
@@ -54,7 +37,7 @@ function App() {
       return [];
     }
   });
-  const [tab, setTab] = useState('score');
+  const [tab, setTab] = useState<AppTab>('score');
   const [modal, setModal] = useState('');
   const [notice, setNotice] = useState('');
   const [noticeType, setNoticeType] = useState<'success' | 'error'>('success');
@@ -187,70 +170,7 @@ function App() {
   }
   return (
     <>
-      <AppBackground />
-      <header>
-        <a
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            setTab('score');
-          }}
-        >
-          <RacketMark />
-          iBadz
-          <span className="brand-sub">BADMINTON CLUB</span>
-        </a>
-        <nav>
-          {[
-            ['score', 'นับคะแนน', Activity],
-            ['expenses', 'ค่าใช้จ่าย', Wallet],
-            ['history', 'ประวัติ', History],
-          ].map(([key, label, Icon]) => (
-            <Button
-              key={String(key)}
-              className={tab === key ? 'nav-active' : ''}
-              aria-current={tab === key ? 'page' : undefined}
-              onClick={() => setTab(String(key))}
-            >
-              <Icon size={17} />
-              {String(label)}
-            </Button>
-          ))}
-        </nav>
-        <span className="local">
-          <i />{' '}
-          {saving
-            ? 'กำลังบันทึก…'
-            : connection === 'online'
-              ? 'เชื่อมต่อฐานข้อมูล'
-              : connection === 'loading'
-                ? 'กำลังเชื่อมต่อ…'
-                : 'ขาดการเชื่อมต่อ'}
-        </span>
-      </header>
-      <main>
-        <div className="page-top">
-          <span>
-            LET’S PLAY BADMINTON{' '}
-            <span className="muted">
-              /{' '}
-              {tab === 'score'
-                ? 'LIVE SCORE'
-                : tab === 'expenses'
-                  ? 'SPLIT THE BILL'
-                  : 'YOUR JOURNEY'}
-            </span>
-          </span>
-          <span className="muted">
-            {new Date().toLocaleDateString('th-TH', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-              timeZone: 'Asia/Bangkok',
-            })}
-          </span>
-        </div>
+      <AppLayout tab={tab} onTabChange={setTab} saving={saving} connection={connection}>
         {tab === 'score' && (
           <ScoreModule
             active={data.active}
@@ -262,40 +182,31 @@ function App() {
         )}
         {tab === 'history' && (
           <>
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow cyan">EVERY GAME COUNTS</span>
-                <h2>ประวัติรอบเล่น</h2>
-              </div>
-              <Button className="outline" onClick={() => setModal('session')}>
-                <Plus size={16} /> สร้างรอบเล่น
-              </Button>
-            </div>
-            <div className="session-bar">
-              <span>
-                <span className="live-dot" /> รอบเล่น
-              </span>
-              <Select
-                value={data.selected}
-                onValueChange={(id) => setData((d) => ({ ...d, selected: id }))}
-              >
-                <SelectTrigger className="session-select-trigger" aria-label="เลือกรอบเล่น">
-                  <SelectValue placeholder="เลือกรอบเล่น" />
-                </SelectTrigger>
-                <SelectContent className="session-select-menu" sideOffset={6}>
-                  {data.sessions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} · {s.date.split('-').reverse().join('/')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="muted">
-                {session
+            <SectionHeading
+              title="ประวัติรอบเล่น"
+              eyebrow="EVERY GAME COUNTS"
+              action={
+                <Button className="outline" onClick={() => setModal('session')}>
+                  <Plus size={16} /> สร้างรอบเล่น
+                </Button>
+              }
+            />
+            <SessionPicker
+              sessions={data.sessions}
+              value={data.selected}
+              onValueChange={(id) => setData((d) => ({ ...d, selected: id }))}
+              ariaLabel="เลือกรอบเล่น"
+              label={
+                <>
+                  <span className="live-dot" /> รอบเล่น
+                </>
+              }
+              summary={
+                session
                   ? `${session.matches.length} แมตช์ · ${session.members.length} คน`
-                  : 'สร้างรอบเล่นแรกเพื่อเริ่มต้น'}
-              </span>
-            </div>
+                  : 'สร้างรอบเล่นแรกเพื่อเริ่มต้น'
+              }
+            />
           </>
         )}
         {tab === 'expenses' && (
@@ -337,53 +248,14 @@ function App() {
                 .slice()
                 .sort((a, b) => b.date.localeCompare(a.date))
                 .map((s) => (
-                  <Card className="panel history-card" key={s.id}>
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow cyan">{s.date}</span>
-                        <h3>{s.name}</h3>
-                      </div>
-                      <Button
-                        className="outline"
-                        onClick={() => {
-                          setData((d) => ({ ...d, selected: s.id }));
-                          setTab('expenses');
-                        }}
-                      >
-                        ฿
-                        {money(
-                          s.expenses.reduce((n, e) => n + e.amount, 0) +
-                            (s.paymentRequests || []).reduce((n, p) => n + p.totalCents / 100, 0),
-                        )}{' '}
-                        <ChevronRight size={16} />
-                      </Button>
-                    </div>
-                    {s.matches.length ? (
-                      s.matches.map((m) => (
-                        <div className="match-row" key={m.id}>
-                          <Clock3 size={15} />
-                          <span>
-                            {new Date(m.time).toLocaleTimeString('th-TH', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          <span>{m.names[0]}</span>
-                          <b>
-                            {m.scores[0]} <em>:</em> {m.scores[1]}
-                          </b>
-                          <span>{m.names[1]}</span>
-                          <small>{m.mode === 'double' ? 'คู่' : 'เดี่ยว'}</small>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="empty-text">ยังไม่มีผลการแข่งขันในรอบนี้</p>
-                    )}
-                    <div className="hint">
-                      {s.members.length} คน · ชำระแล้ว {s.members.filter((m) => m.paid).length} คน ·{' '}
-                      {s.expenses.length + (s.paymentRequests?.length || 0)} รายการค่าใช้จ่าย
-                    </div>
-                  </Card>
+                  <HistorySessionCard
+                    key={s.id}
+                    session={s}
+                    onOpenExpenses={(id) => {
+                      setData((d) => ({ ...d, selected: id }));
+                      setTab('expenses');
+                    }}
+                  />
                 ))
             ) : (
               <Card className="panel empty-text">
@@ -392,32 +264,13 @@ function App() {
             )}
           </div>
         )}
-        <footer>
-          <span className="brand">
-            iBadz<span className="muted"> / FOR EVERY PLAYER.</span>
-          </span>
-          <span className="brand footer-credit">
-            MADE BY MARUSLAMDEVZ<span className="muted"> / SINCE 2026</span>
-          </span>
-        </footer>
-      </main>
-      {notice &&
-        createPortal(
-          <div
-            key={noticeKey}
-            className={`toast toast-${noticeType}`}
-            role={noticeType === 'error' ? 'alert' : 'status'}
-            aria-live={noticeType === 'error' ? 'assertive' : 'polite'}
-            aria-atomic="true"
-          >
-            {noticeType === 'error' && <CircleAlert size={18} aria-hidden="true" />}
-            {notice}
-            <Button aria-label="ปิดข้อความ" onClick={() => setNotice('')}>
-              <X size={16} />
-            </Button>
-          </div>,
-          document.fullscreenElement || document.body,
-        )}
+      </AppLayout>
+      <ToastNotification
+        key={noticeKey}
+        message={notice}
+        type={noticeType}
+        onClose={() => setNotice('')}
+      />
       <Dialog
         open={!!modal}
         onOpenChange={(open) => {

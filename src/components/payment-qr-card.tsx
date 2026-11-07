@@ -1,3 +1,4 @@
+import { formatSatang as money, formatSessionDate } from '../lib/format';
 import { useEffect, useRef, useState } from 'react';
 import { Download, Share2 } from 'lucide-react';
 import { MeshGradient } from '@paper-design/shaders-react';
@@ -7,9 +8,6 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { paymentPayload, type PaymentRequest } from '../lib/payments';
 import type { Session } from '../lib/store';
-
-const money = (cents: number) =>
-  (cents / 100).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 type Props = {
   payment: PaymentRequest;
@@ -52,7 +50,7 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
     }
   }
 
-  const date = session?.date.split('-').reverse().join('/') || '';
+  const date = session ? formatSessionDate(session.date) : '';
   const round = session?.name || 'รอบเล่น';
   const heading = payment.method === 'promptpay' ? 'PromptPay' : 'QR Payment';
   const details = [

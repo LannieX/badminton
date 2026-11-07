@@ -1,4 +1,4 @@
-# RALLY — Badminton
+# iBadz — Badminton
 
 Responsive Thai badminton app built with React, TypeScript, Vite and Tailwind CSS. The cyan/orange shader hero adapts the supplied reference with Paper Design and Framer Motion.
 
@@ -23,6 +23,13 @@ npm run build
 
 ## Structure
 
+- `src/components/app-layout.tsx`: shared background, header, navigation, page context and footer.
+- `src/components/session-picker.tsx`: shared round selector for history and expenses.
+- `src/components/section-heading.tsx`: page heading with an optional action.
+- `src/components/history-session-card.tsx`: reusable session summary and match history card.
+- `src/components/toast-notification.tsx`: accessible notifications, including fullscreen portals.
+- `src/components/required-mark.tsx`: shared required-field indicator.
+- `src/lib/format.ts`: shared money, satang and session-date formatting.
 - `src/components/ui/hero.tsx`: reusable reference-inspired hero.
 - `src/styles.css`: Tailwind entry and responsive theme.
 - `src/lib/store.ts`: data types, persistence, scoring and allocation helpers. Includes browser cache and in-progress match persistence.
@@ -67,10 +74,10 @@ For production hosting, proxy `/api` to the backend service (or configure an equ
 
 The expense screen has one **เพิ่มรายการ** action. Enter the total in THB, player count (1–500), and a PromptPay recipient. Requests are stored in Neon via `POST /api/payment-requests`. Each QR encodes the per-person amount, with separate amount groups when dividing leaves a satang remainder. Each request can be edited or deleted with confirmation. Editing recalculates per-person amounts and QR codes. Legacy expense records can also be edited or deleted.
 
-Payload generation uses `@thai-qr-payment/payload` and rendering uses `qrcode.react`, with a white quiet zone. Run `node scripts/check-payments.mjs` to verify receiver validation, exact satang allocation, PromptPay/bank-account tags and CRC. The generated QR does not verify account ownership or confirm that anyone has paid. Bank-app compatibility and recipient names must be confirmed in the bank app; no real transfers are performed by the app or tests.
+Payload generation uses `@thai-qr-payment/payload` and rendering uses `qrcode.react`, with a transparent QR background. Run `node scripts/check-payments.mjs` to verify receiver validation, exact satang allocation, PromptPay/bank-account tags and CRC. The generated QR does not verify account ownership or confirm that anyone has paid. Bank-app compatibility and recipient names must be confirmed in the bank app; no real transfers are performed by the app or tests.
 
 ## Racket branding and PromptPay-only creation
 
-The header now uses crossed racket photos and the score setup screen uses transparent racket decorations from `public/images/racket-cutout.png`. The first user-supplied racket photo was processed with built-in Imagegen for background extraction and cleanup; the original attachment is unchanged. Prompt notes are in `public/images/README.md`.
+The header uses `public/images/racket-head-short-shaft.png`; the score setup screen uses `public/images/racket-cutout.png`. Asset source information is in `public/images/README.md`.
 
 New payment requests use PromptPay only: the expense form contains total, player count, and PromptPay number. Bank/method selectors are removed. Previously stored bank-account requests remain readable; no historical payment records are deleted.

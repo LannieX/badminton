@@ -1,3 +1,4 @@
+import { RequiredMark } from './required-mark';
 import { ValidatedForm } from './validated-form';
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeftRight, Check, Minimize, Maximize, RotateCcw, Settings2 } from 'lucide-react';
@@ -175,10 +176,7 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
               }}
             >
               <Label htmlFor="custom-target">
-                คะแนนที่ต้องการ (1–999){' '}
-                <span className="required-mark" aria-hidden="true">
-                  *
-                </span>
+                คะแนนที่ต้องการ (1–999) <RequiredMark />
               </Label>
               <Input
                 id="custom-target"

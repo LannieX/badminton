@@ -6,7 +6,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
+import { SectionHeading } from './section-heading';
+import { SessionPicker } from './session-picker';
+import { RequiredMark } from './required-mark';
+import { formatSatang as money } from '../lib/format';
 import { ValidatedForm } from './validated-form';
 import {
   banks,
@@ -18,8 +21,6 @@ import {
   type PaymentRequest,
 } from '../lib/payments';
 import { uid, type Session, type Expense } from '../lib/store';
-const money = (cents: number) =>
-  (cents / 100).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 type Props = {
   sessions: Session[];
   session?: Session;
@@ -57,39 +58,30 @@ export default function ExpenseModule({
   const payments = session?.paymentRequests || [];
   return (
     <>
-      <div className="section-heading">
-        <div>
-          <span className="eyebrow cyan">SPLIT & PAY</span>
-          <h2>ค่าใช้จ่ายและหารเงิน</h2>
-        </div>
-        <Button
-          className="primary"
-          onClick={() => {
-            setEditing(null);
-            setDraftId(uid());
-            setOpen(true);
-          }}
-        >
-          <Plus size={16} /> เพิ่มรายการ
-        </Button>
-      </div>
+      <SectionHeading
+        title="ค่าใช้จ่ายและหารเงิน"
+        eyebrow="SPLIT & PAY"
+        action={
+          <Button
+            className="primary"
+            onClick={() => {
+              setEditing(null);
+              setDraftId(uid());
+              setOpen(true);
+            }}
+          >
+            <Plus size={16} /> เพิ่มรายการ
+          </Button>
+        }
+      />
       {sessions.length > 0 && (
-        <div className="session-bar">
-          <span>รอบเล่น</span>
-          <Select value={selected} onValueChange={onSelect}>
-            <SelectTrigger className="session-select-trigger" aria-label="เลือกรอบค่าใช้จ่าย">
-              <SelectValue placeholder="เลือกรอบเล่น" />
-            </SelectTrigger>
-            <SelectContent className="session-select-menu" sideOffset={6}>
-              {sessions.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name} · {s.date.split('-').reverse().join('/')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="muted">{payments.length} รายการ</span>
-        </div>
+        <SessionPicker
+          sessions={sessions}
+          value={selected}
+          onValueChange={onSelect}
+          ariaLabel="เลือกรอบค่าใช้จ่าย"
+          summary={`${payments.length} รายการ`}
+        />
       )}
       {payments.length ? (
         <div className="payment-list">
@@ -278,10 +270,7 @@ export default function ExpenseModule({
           >
             <div className="form-grid">
               <Label>
-                ยอดค่าใช้จ่ายรวม (บาท){' '}
-                <span className="required-mark" aria-hidden="true">
-                  *
-                </span>
+                ยอดค่าใช้จ่ายรวม (บาท) <RequiredMark />
                 <Input
                   name="total"
                   defaultValue={editing ? editing.totalCents / 100 : undefined}
@@ -295,10 +284,7 @@ export default function ExpenseModule({
                 />
               </Label>
               <Label>
-                จำนวนผู้เล่น{' '}
-                <span className="required-mark" aria-hidden="true">
-                  *
-                </span>
+                จำนวนผู้เล่น <RequiredMark />
                 <Input
                   name="players"
                   defaultValue={editing?.playerCount}
@@ -312,10 +298,7 @@ export default function ExpenseModule({
               </Label>
             </div>
             <Label>
-              {editing?.method === 'bank' ? 'เลขบัญชีธนาคาร' : 'เลขพร้อมเพย์'}{' '}
-              <span className="required-mark" aria-hidden="true">
-                *
-              </span>
+              {editing?.method === 'bank' ? 'เลขบัญชีธนาคาร' : 'เลขพร้อมเพย์'} <RequiredMark />
               <Input
                 name="recipient"
                 defaultValue={editing?.recipient}
@@ -406,10 +389,7 @@ export default function ExpenseModule({
             }}
           >
             <Label>
-              รายการ{' '}
-              <span className="required-mark" aria-hidden="true">
-                *
-              </span>
+              รายการ <RequiredMark />
               <Input
                 name="title"
                 required
@@ -419,10 +399,7 @@ export default function ExpenseModule({
               />
             </Label>
             <Label>
-              จำนวนเงิน (บาท){' '}
-              <span className="required-mark" aria-hidden="true">
-                *
-              </span>
+              จำนวนเงิน (บาท) <RequiredMark />
               <Input
                 name="amount"
                 type="number"
