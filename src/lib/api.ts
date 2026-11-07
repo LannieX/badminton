@@ -9,10 +9,11 @@ export class ApiError extends Error {
   }
 }
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined,
