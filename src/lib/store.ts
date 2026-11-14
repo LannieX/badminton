@@ -24,7 +24,6 @@ export type Active = {
   mode: string;
   names: [string, string];
   target: number;
-  deuce: boolean;
   points: number[];
   swapped: boolean;
 };
@@ -61,15 +60,15 @@ export function save(data: Data) {
 export function score(points: number[]): [number, number] {
   return [points.filter((p) => p === 0).length, points.filter((p) => p === 1).length];
 }
+export function deuceProgress(a: Active): [number, number] | null {
+  const [home, away] = score(a.points);
+  if (a.target <= 1 || Math.min(home, away) < a.target - 1) return null;
+  return [Math.min(2, Math.max(0, home - away)), Math.min(2, Math.max(0, away - home))];
+}
 export function winner(a: Active) {
   const [x, y] = score(a.points);
-  return x !== y &&
-    Math.max(x, y) >= a.target &&
-    (!a.deuce || Math.abs(x - y) >= 2 || Math.max(x, y) >= a.target + 9)
-    ? x > y
-      ? 0
-      : 1
-    : null;
+  const gap = a.target === 1 ? 1 : 2;
+  return Math.max(x, y) >= a.target && Math.abs(x - y) >= gap ? (x > y ? 0 : 1) : null;
 }
 export function shares(total: number, n: number) {
   const cents = Math.round(total * 100);

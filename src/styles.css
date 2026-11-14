@@ -2429,3 +2429,33 @@ a,
   inset: 0;
   background: #030a1299;
 }
+
+.deuce-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 24px;
+  margin-bottom: 8px;
+}
+.deuce-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: #b0c2cd;
+  margin-right: 2px;
+}
+.deuce-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid #e9ff7450;
+  background: #e9ff7410;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+.deuce-dot.is-lit {
+  background: var(--score-lime);
+  border-color: var(--score-lime);
+  box-shadow: 0 0 12px #e9ff7480;
+}

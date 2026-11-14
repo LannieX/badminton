@@ -7,7 +7,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { NativeSelect, NativeSelectOption } from './ui/native-select';
-import { score, winner, uid, type Active } from '../lib/store';
+import { score, winner, deuceProgress, uid, type Active } from '../lib/store';
 
 type Props = {
   active: Active | null;
@@ -27,6 +27,7 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
   const [dismissed, setDismissed] = useState<string | null>(null);
   const scores = active ? score(active.points) : [0, 0];
   const won = active ? winner(active) : null;
+  const deuce = active ? deuceProgress(active) : null;
   const signature = active ? active.points.join('') : '';
   const confirm = won !== null && dismissed !== signature;
   useEffect(() => {
@@ -109,7 +110,6 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
       mode,
       names: ['เจ้าบ้าน', 'ผู้มาเยือน'],
       target,
-      deuce: false,
       points: [],
       swapped: false,
     });
@@ -225,11 +225,22 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
                 key={i}
                 className="glass-score"
                 disabled={saving}
-                aria-label={`${active.names[i]} ${scores[i]} คะแนน เพิ่มคะแนน`}
+                aria-label={`${active.names[i]} ${scores[i]} คะแนน${deuce ? ` ดิวซ์ ${deuce[i]} จาก 2 จุด` : ''} เพิ่มคะแนน`}
                 onClick={() => change((a) => ({ ...a, points: [...a.points, i] }))}
               >
                 <span className="score-team-name">{active.names[i]}</span>
                 <strong>{scores[i]}</strong>
+                {deuce && (
+                  <span className="deuce-indicator" aria-hidden="true">
+                    <span className="deuce-label">ดิวซ์</span>
+                    {[1, 2].map((point) => (
+                      <span
+                        key={point}
+                        className={`deuce-dot ${deuce[i] >= point ? 'is-lit' : ''}`}
+                      />
+                    ))}
+                  </span>
+                )}
                 <span className="score-tap">แตะเพื่อเพิ่มคะแนน +1</span>
               </Button>
             ))}
@@ -275,7 +286,9 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
         }}
       >
         <DialogContent className="modal" aria-describedby={undefined}>
-          <DialogTitle>ครบ {active?.target} แต้มแล้ว</DialogTitle>
+          <DialogTitle>
+            {deuce ? 'ชนะห่าง 2 แต้มแล้ว' : `ครบ ${active?.target} แต้มแล้ว`}
+          </DialogTitle>
           <p className="finish-score">
             {active?.names[0]}{' '}
             <b>

@@ -5,7 +5,7 @@ const source = fs.readFileSync(new URL('../src/lib/store.ts', import.meta.url), 
 const js = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { score, winner, shares, completeMatch } = await import(
+const { score, winner, deuceProgress, shares, completeMatch } = await import(
   `data:text/javascript;base64,${Buffer.from(js).toString('base64')}`
 );
 const active = (x, y, deuce = true, target = 21) => ({
@@ -17,13 +17,15 @@ assert.deepEqual(score([0, 1, 0]), [2, 1]);
 assert.equal(winner(active(20, 20)), null);
 assert.equal(winner(active(21, 20)), null);
 assert.equal(winner(active(22, 20)), 0);
-assert.equal(winner(active(29, 30)), 1);
-assert.equal(winner(active(21, 20, false)), 0);
-assert.equal(winner(active(10, 11, false, 11)), 1);
+assert.equal(winner(active(29, 30)), null);
+assert.equal(winner(active(21, 20, false)), null);
+assert.equal(winner(active(10, 11, false, 11)), null);
 assert.deepEqual(shares(100, 3), [33.34, 33.33, 33.33]);
 assert.deepEqual(shares(0, 0), []);
 assert.deepEqual(shares(0.01, 3), [0.01, 0, 0]);
-console.log('Passed: scoring, deuce, cap, custom targets and exact money allocation.');
+console.log(
+  'Passed: scoring, automatic uncapped deuce, custom targets and exact money allocation.',
+);
 
 const playing = {
   sessionId: '',
@@ -79,3 +81,31 @@ const lanSecond = lanContext.exports.completeMatch({ ...lanFinished, active: pla
 assert.equal(lanSecond.sessions.length, 1);
 assert.equal(lanSecond.sessions[0].matches.length, 2);
 console.log('Passed: UUID fallback and repeated match completion on LAN HTTP.');
+
+for (const target of [10, 11, 15, 16, 25, 999]) {
+  assert.equal(deuceProgress(active(target - 1, target - 2, false, target)), null);
+  assert.deepEqual(deuceProgress(active(target - 1, target - 1, false, target)), [0, 0]);
+  assert.equal(winner(active(target, target - 1, false, target)), null);
+  assert.deepEqual(deuceProgress(active(target, target - 1, false, target)), [1, 0]);
+  assert.deepEqual(deuceProgress(active(target, target, false, target)), [0, 0]);
+  assert.deepEqual(deuceProgress(active(target, target + 1, false, target)), [0, 1]);
+  assert.equal(winner(active(target + 1, target - 1, false, target)), 0);
+  assert.deepEqual(deuceProgress(active(target + 1, target - 1, false, target)), [2, 0]);
+  assert.equal(winner(active(target + 20, target + 19, false, target)), null);
+  assert.equal(winner(active(target + 20, target + 22, false, target)), 1);
+  const before = active(target - 1, target - 1, false, target);
+  const lead = { ...before, points: [...before.points, 0] };
+  const undone = { ...lead, points: lead.points.slice(0, -1) };
+  assert.deepEqual(deuceProgress(undone), [0, 0]);
+  assert.deepEqual(deuceProgress({ ...lead, swapped: true }), [1, 0]);
+}
+assert.equal(winner(active(1, 0, false, 1)), 0);
+assert.equal(deuceProgress(active(0, 0, false, 1)), null);
+assert.equal(
+  completeMatch(
+    { ...initial, active: { ...playing, target: 16, points: active(16, 15).points } },
+    sat,
+  ).active?.target,
+  16,
+);
+console.log('Passed: deuce dots, lead changes, undo, swapped sides and play beyond the old cap.');

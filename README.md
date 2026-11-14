@@ -15,7 +15,7 @@ npm run build
 ## Features
 
 - Create dated playing sessions; switch between sessions.
-- Singles/doubles, optional team names (defaults: เหย้า / เยือน), custom target, single game, optional win-by-two with target + 9 cap.
+- Singles/doubles, optional team names (defaults: เหย้า / เยือน), custom target, single game with automatic win-by-two deuce and no score cap.
 - Tap to score, undo, switch visual sides, cancel, save completed matches.
 - Itemized expenses, equal split with exact satang allocation, participants and payment status. Changing expenses or participants resets payment statuses.
 - Session history including match results, expenses, and payment status.
@@ -46,7 +46,7 @@ Kanit is self-hosted via `@fontsource/kanit` (weights 300–700 and 900), applie
 
 ## Quick scoring flow
 
-Open scoring, choose 10 / 11 / 15 / 16 or Custom (integer 1–999). The board opens immediately with เจ้าบ้าน / ผู้มาเยือน; optional names and singles/doubles are available in Settings. New games end at the target without deuce. Scores can be undone and visual sides swapped.
+Open scoring, choose 10 / 11 / 15 / 16 or Custom (integer 1–999). The board opens immediately with เจ้าบ้าน / ผู้มาเยือน; optional names and singles/doubles are available in Settings. Games require a two-point lead. At a tie one point below the target (for example 15–15 for a 16-point game), each side shows two deuce dots: one lights for a one-point lead and both light for a winning two-point lead. A tie clears both sides. Play continues beyond the target without a score cap. A custom one-point game ends on the first point. Scores can be undone and visual sides swapped.
 
 At the target, the confirmation offers สิ้นสุดการแข่งขัน or ยังไม่สิ้นสุด. Returning to the board allows correction before saving. Confirmed matches create or append to `daily:YYYY-MM-DD` sessions using Asia/Bangkok completion dates and weekday names such as ก๊วนวันเสาร์. Separate calendar dates remain separate even when weekday names match. Incomplete games are not added to history. Legacy sessions and active games remain readable.
 
