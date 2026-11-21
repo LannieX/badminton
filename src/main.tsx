@@ -1,3 +1,14 @@
+import { ContentRegion } from './components/content-region';
+import { LoadingStatus } from './components/loading-status';
+import TournamentModule from './components/tournament-module';
+import { PaginationControls } from './components/pagination-controls';
+import { usePagination } from './hooks/use-pagination';
+import { ProfileModule } from './components/profile-module';
+import { Spinner } from './components/ui/spinner';
+import { membershipSummary } from './lib/payments';
+import { LoginScreen } from './components/login-screen';
+import { PlayersModule } from './components/players-module';
+import type { Player } from './lib/players';
 import ExpenseModule from './components/expense-module';
 import { ValidatedForm } from './components/validated-form';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -23,21 +34,79 @@ import '@fontsource/kanit/600.css';
 import '@fontsource/kanit/700.css';
 import '@fontsource/kanit/900.css';
 import './styles.css';
-function App() {
-  const [data, setData] = useState<Data>(read);
+function App({
+  user,
+  onLogout,
+  onUserUpdate,
+  freshLogin,
+}: {
+  user: Player;
+  onLogout: () => Promise<void>;
+  onUserUpdate: (user: Player) => void;
+  freshLogin: boolean;
+}) {
+  const canManage = user.role === 'admin';
+  const [data, setData] = useState<Data>(() => {
+    const cached = read();
+    return freshLogin ? { ...cached, active: null } : cached;
+  });
   const [saving, setSaving] = useState(false);
   const [connection, setConnection] = useState<'loading' | 'online' | 'offline'>('loading');
   const mutationLock = useRef(false);
   const syncVersion = useRef(0);
-  const [legacy] = useState<Session[]>(() => {
-    try {
-      const old = JSON.parse(localStorage.getItem('rally-v1') || '{}');
-      return Array.isArray(old.sessions) ? old.sessions : [];
-    } catch {
-      return [];
-    }
-  });
   const [tab, setTab] = useState<AppTab>('score');
+  const [selectedTournament, setSelectedTournament] = useState('');
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [playersBusy, setPlayersBusy] = useState(false);
+  const playersLock = useRef(false);
+  const [playerPaging, setPlayerPaging] = useState({ page: 1, pageSize: 10, total: 0 });
+  const playerPage = useRef(1);
+  const playerQuery = useRef('');
+  async function searchPlayers(query: string, page = 1) {
+    if (playersLock.current) return false;
+    playersLock.current = true;
+    setPlayersBusy(true);
+    try {
+      const result = await api.playerPage(query, page);
+      setPlayers(result.players);
+      playerPage.current = result.page;
+      setPlayerPaging({ page: result.page, pageSize: result.pageSize, total: result.total });
+      playerQuery.current = query;
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'โหลดรายชื่อผู้เล่นไม่สำเร็จ');
+      return false;
+    } finally {
+      playersLock.current = false;
+      setPlayersBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (tab === 'players') void searchPlayers('');
+  }, [tab]);
+  async function mutatePlayer(operation: () => Promise<unknown>) {
+    if (playersLock.current) return false;
+    playersLock.current = true;
+    setPlayersBusy(true);
+    try {
+      await operation();
+      try {
+        const result = await api.playerPage(playerQuery.current, playerPage.current);
+        setPlayers(result.players);
+        playerPage.current = result.page;
+        setPlayerPaging({ page: result.page, pageSize: result.pageSize, total: result.total });
+      } catch {
+        showError('บันทึกสำเร็จ แต่โหลดรายการล่าสุดไม่สำเร็จ กรุณากดค้นหาอีกครั้ง');
+      }
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : 'บันทึกผู้เล่นไม่สำเร็จ');
+      return false;
+    } finally {
+      playersLock.current = false;
+      setPlayersBusy(false);
+    }
+  }
   const [modal, setModal] = useState('');
   const [notice, setNotice] = useState('');
   const [noticeType, setNoticeType] = useState<'success' | 'error'>('success');
@@ -86,6 +155,10 @@ function App() {
       window.removeEventListener('focus', sync);
     };
   }, [refresh]);
+  const historyPages = usePagination(
+    [...data.sessions].sort((a, b) => b.date.localeCompare(a.date)),
+    10,
+  );
   const session = data.sessions.find((s) => s.id === data.selected);
   async function persist(operation: () => Promise<{ session: Session }>): Promise<boolean> {
     if (mutationLock.current) return false;
@@ -126,55 +199,51 @@ function App() {
     const active = { ...data.active, matchId: data.active.matchId || uid() };
     setData((d) => ({ ...d, active }));
     const success = await persist(() =>
-      api.finish({
-        id: active.matchId,
-        time: new Date().toISOString(),
-        mode: active.mode,
-        names: active.names,
-        scores: score(active.points),
-        target: active.target,
-      }),
+      active.tournamentId && active.tournamentGameId
+        ? api.finishTournamentGame(
+            active.tournamentId,
+            active.tournamentGameId,
+            score(active.points),
+          )
+        : api.finish({
+            id: active.matchId,
+            time: new Date().toISOString(),
+            mode: active.mode,
+            names: active.names,
+            scores: score(active.points),
+            target: active.target,
+          }),
     );
     if (success) {
       setData((d) => ({ ...d, active: null }));
       setNoticeType('success');
-      setNotice('บันทึกผลเข้าฐานข้อมูลแล้ว');
-    }
-  }
-  const hasLegacy = legacy.some((old) => {
-    const remote = data.sessions.find((s) => s.id === old.id && s.version);
-    return (
-      !remote ||
-      old.matches.some((m) => !remote.matches.some((x) => x.id === m.id)) ||
-      old.expenses.some((e) => !remote.expenses.some((x) => x.id === e.id)) ||
-      old.members.some((m) => !remote.members.some((x) => x.id === m.id))
-    );
-  });
-  async function importHistory() {
-    if (mutationLock.current) return;
-    mutationLock.current = true;
-    syncVersion.current += 1;
-    setSaving(true);
-    try {
-      const { sessions } = await api.importSessions(legacy);
-      setData((d) => ({ ...d, sessions, selected: sessions[0]?.id || '' }));
-      setNoticeType('success');
-      setNotice('นำเข้าประวัติเดิมแล้ว');
-      setConnection('online');
-    } catch (error) {
-      showError(error instanceof Error ? error.message : 'นำเข้าข้อมูลไม่สำเร็จ');
-    } finally {
-      mutationLock.current = false;
-      setSaving(false);
+      setNotice('บันทึกผลการแข่งขันแล้ว');
+      if (active.tournamentId) {
+        setSelectedTournament(active.tournamentId);
+        setTab('tournaments');
+      }
     }
   }
   return (
     <>
-      <AppLayout tab={tab} onTabChange={setTab} saving={saving} connection={connection}>
+      <AppLayout
+        tab={tab}
+        onTabChange={setTab}
+        saving={saving}
+        connection={connection}
+        user={user}
+        onLogout={onLogout}
+      >
         {tab === 'score' && (
           <ScoreModule
             active={data.active}
-            onChange={(active) => setData((d) => ({ ...d, active }))}
+            onChange={(active) => {
+              if (!active && data.active?.tournamentId) {
+                setSelectedTournament(data.active.tournamentId);
+                setTab('tournaments');
+              }
+              setData((d) => ({ ...d, active }));
+            }}
             onFinish={finish}
             onError={showError}
             saving={saving}
@@ -186,12 +255,15 @@ function App() {
               title="ประวัติรอบเล่น"
               eyebrow="EVERY GAME COUNTS"
               action={
-                <Button className="outline" onClick={() => setModal('session')}>
-                  <Plus size={16} /> สร้างรอบเล่น
-                </Button>
+                canManage && (
+                  <Button className="outline" onClick={() => setModal('session')}>
+                    <Plus size={16} /> สร้างรอบเล่น
+                  </Button>
+                )
               }
             />
             <SessionPicker
+              loading={connection === 'loading'}
               sessions={data.sessions}
               value={data.selected}
               onValueChange={(id) => setData((d) => ({ ...d, selected: id }))}
@@ -203,7 +275,7 @@ function App() {
               }
               summary={
                 session
-                  ? `${session.matches.length} แมตช์ · ${session.members.length} คน`
+                  ? `${session.matches.length} แมตช์ · ${membershipSummary(session.paymentRequests || []).count || session.members.length} คน`
                   : 'สร้างรอบเล่นแรกเพื่อเริ่มต้น'
               }
             />
@@ -211,21 +283,38 @@ function App() {
         )}
         {tab === 'expenses' && (
           <ExpenseModule
+            loading={connection === 'loading'}
+            currentUserId={user.id}
+            canManage={canManage}
+            onPaid={(paymentId, memberId, paid) => {
+              const round = data.sessions.find((item) =>
+                item.paymentRequests?.some((payment) => payment.id === paymentId),
+              );
+              return round
+                ? persist(() => api.markPaid(paymentId, memberId, paid, round.version!))
+                : Promise.resolve(false);
+            }}
             sessions={data.sessions}
             session={session}
             selected={data.selected}
             onSelect={(id) => setData((d) => ({ ...d, selected: id }))}
             onCreate={(input) => persist(() => api.createPayment(input))}
-            onEdit={(input) =>
-              session
-                ? persist(() => api.editPayment(session.id, session.version!, input))
-                : Promise.resolve(false)
-            }
-            onDelete={(id) =>
-              session
-                ? persist(() => api.deletePayment(session.id, id, session.version!))
-                : Promise.resolve(false)
-            }
+            onEdit={(input) => {
+              const round = data.sessions.find((item) =>
+                item.paymentRequests?.some((payment) => payment.id === input.id),
+              );
+              return round
+                ? persist(() => api.editPayment(round.id, round.version!, input))
+                : Promise.resolve(false);
+            }}
+            onDelete={(id) => {
+              const round = data.sessions.find((item) =>
+                item.paymentRequests?.some((payment) => payment.id === id),
+              );
+              return round
+                ? persist(() => api.deletePayment(round.id, id, round.version!))
+                : Promise.resolve(false);
+            }}
             onLegacyChange={(expenses) =>
               session ? persist(() => api.update({ ...session, expenses })) : Promise.resolve(false)
             }
@@ -233,36 +322,115 @@ function App() {
             onError={showError}
           />
         )}
-        {tab === 'history' && hasLegacy && connection === 'online' && (
-          <div className="legacy-import">
-            <span>มีประวัติเดิมในเครื่องนี้ที่ยังไม่อยู่ในฐานข้อมูล</span>
-            <Button className="outline" disabled={saving} onClick={importHistory}>
-              นำเข้าประวัติเดิม
-            </Button>
-          </div>
+        {tab === 'tournaments' && (
+          <TournamentModule
+            onDeleted={(id) => {
+              setData((data) =>
+                data.active?.tournamentId === id ? { ...data, active: null } : data,
+              );
+            }}
+            selected={selectedTournament}
+            onSelect={setSelectedTournament}
+            canManage={canManage}
+            active={data.active}
+            onError={showError}
+            onStart={(tournament, game) => {
+              if (!canManage) return;
+              if (data.active?.tournamentGameId === game.id) {
+                setTab('score');
+                return;
+              }
+              if (data.active?.points.length) {
+                showError('มีเกมที่ยังไม่จบ กรุณาจบหรือยกเลิกเกมเดิมก่อน');
+                return;
+              }
+              const home = tournament.teams.find((team) => team.id === game.teams[0])!;
+              const away = tournament.teams.find((team) => team.id === game.teams[1])!;
+              setData((d) => ({
+                ...d,
+                active: {
+                  matchId: game.id,
+                  tournamentId: tournament.id,
+                  tournamentGameId: game.id,
+                  sessionId: '',
+                  mode: 'double',
+                  names: [home.names.join(' / '), away.names.join(' / ')],
+                  target: tournament.target,
+                  points: [],
+                  swapped: false,
+                  service: { firstSide: 0, firstRight: [0, 0], players: [home.names, away.names] },
+                },
+              }));
+              setSelectedTournament(tournament.id);
+              setTab('score');
+            }}
+          />
+        )}
+        {tab === 'profile' && (
+          <ProfileModule
+            key={`${user.id}:${user.name}:${user.username}:${user.avatar}`}
+            user={user}
+            onError={showError}
+            onSave={async (input) => {
+              try {
+                const result = await api.updateProfile(input);
+                onUserUpdate(result.user);
+                setPlayers((current) =>
+                  current.map((player) => (player.id === result.user.id ? result.user : player)),
+                );
+                setNoticeType('success');
+                setNotice('บันทึกข้อมูลส่วนตัวแล้ว');
+                setNoticeKey((key) => key + 1);
+                return true;
+              } catch (error) {
+                showError(error instanceof Error ? error.message : 'บันทึกข้อมูลไม่สำเร็จ');
+                return false;
+              }
+            }}
+          />
+        )}
+        {tab === 'players' && (
+          <PlayersModule
+            players={players}
+            pagination={{
+              ...playerPaging,
+              onPageChange: (page) => {
+                void searchPlayers(playerQuery.current, page);
+              },
+            }}
+            saving={playersBusy}
+            onError={showError}
+            onSearch={searchPlayers}
+            onSave={(input) => mutatePlayer(() => api.savePlayer(input))}
+            canManage={canManage}
+          />
         )}
         {tab === 'history' && (
-          <div className="history-list">
-            {data.sessions.length ? (
-              data.sessions
-                .slice()
-                .sort((a, b) => b.date.localeCompare(a.date))
-                .map((s) => (
-                  <HistorySessionCard
-                    key={s.id}
-                    session={s}
-                    onOpenExpenses={(id) => {
-                      setData((d) => ({ ...d, selected: id }));
-                      setTab('expenses');
-                    }}
-                  />
-                ))
-            ) : (
-              <Card className="panel empty-text">
-                ทุกเรื่องราวเริ่มจากเกมแรก สร้างรอบเล่นเพื่อเริ่มบันทึก
-              </Card>
-            )}
-          </div>
+          <>
+            <ContentRegion loading={connection === 'loading'} empty={!data.sessions.length}>
+              <div className="history-list">
+                {connection === 'loading' && !data.sessions.length ? (
+                  <LoadingStatus>กำลังเตรียมข้อมูล…</LoadingStatus>
+                ) : data.sessions.length ? (
+                  historyPages.items.map((s) => (
+                    <HistorySessionCard
+                      key={s.id}
+                      session={s}
+                      onOpenExpenses={(id) => {
+                        setData((d) => ({ ...d, selected: id }));
+                        setTab('expenses');
+                      }}
+                    />
+                  ))
+                ) : (
+                  <Card className="panel empty-text">
+                    ทุกเรื่องราวเริ่มจากเกมแรก สร้างรอบเล่นเพื่อเริ่มบันทึก
+                  </Card>
+                )}
+              </div>
+            </ContentRegion>
+            <PaginationControls {...historyPages} label="รอบเล่น" />
+          </>
         )}
       </AppLayout>
       <ToastNotification
@@ -355,7 +523,8 @@ function App() {
                 </>
               )}
               <Button className="primary submit" type="submit" disabled={saving}>
-                {modal === 'match' ? 'เริ่มเกม' : 'บันทึก'} <ArrowUpRight size={17} />
+                {modal === 'match' ? 'เริ่มเกม' : 'บันทึก'}{' '}
+                {saving ? <Spinner aria-hidden="true" /> : <ArrowUpRight size={17} />}
               </Button>
             </ValidatedForm>
           )}
@@ -364,8 +533,106 @@ function App() {
     </>
   );
 }
+function AuthRoot() {
+  const [freshLogin, setFreshLogin] = useState(false);
+  const [user, setUser] = useState<Player | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [error, setError] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [retryVersion, setRetryVersion] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    let pending = false;
+    let needsRetry = true;
+    let timer: number | undefined;
+    setChecking(true);
+    async function checkSession() {
+      if (pending || !mounted) return;
+      pending = true;
+      window.clearTimeout(timer);
+      try {
+        const result = await api.me();
+        if (!mounted) return;
+        setUser(result.user);
+        setAuthError('');
+        setChecking(false);
+        needsRetry = false;
+      } catch (error) {
+        if (!mounted) return;
+        if (error instanceof ApiError && error.status === 401 && error.code === 'SESSION_INVALID') {
+          setUser(null);
+          setAuthError('');
+          setError('');
+          setChecking(false);
+          needsRetry = false;
+        } else {
+          setAuthError('กำลังเตรียมข้อมูล');
+          setChecking(false);
+          timer = window.setTimeout(() => {
+            void checkSession();
+          }, 5000);
+        }
+      } finally {
+        pending = false;
+      }
+    }
+    const reconnect = () => {
+      if (needsRetry) void checkSession();
+    };
+    void checkSession();
+    const expired = () => {
+      needsRetry = false;
+      window.clearTimeout(timer);
+      setUser(null);
+      localStorage.removeItem('rally-online-v1');
+      setAuthError('');
+      setChecking(false);
+      setError('การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
+    };
+    window.addEventListener('online', reconnect);
+    window.addEventListener('ibadz:unauthorized', expired);
+    return () => {
+      mounted = false;
+      window.clearTimeout(timer);
+      window.removeEventListener('online', reconnect);
+      window.removeEventListener('ibadz:unauthorized', expired);
+    };
+  }, [retryVersion]);
+  if (!user)
+    return (
+      <LoginScreen
+        checking={checking || !!authError}
+        error={authError || error}
+        onRetry={() => setRetryVersion((version) => version + 1)}
+        onLogin={async (username, password) => {
+          setError('');
+          try {
+            const result = await api.login(username, password);
+            setFreshLogin(true);
+            setUser(result.user);
+          } catch (error) {
+            setError(error instanceof Error ? error.message : 'เข้าสู่ระบบไม่สำเร็จ');
+          }
+        }}
+      />
+    );
+  return (
+    <App
+      key={user.id}
+      user={user}
+      onUserUpdate={setUser}
+      freshLogin={freshLogin}
+      onLogout={async () => {
+        await api.logout();
+        localStorage.removeItem('rally-online-v1');
+        setUser(null);
+        setError('');
+      }}
+    />
+  );
+}
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AuthRoot />
   </React.StrictMode>,
 );

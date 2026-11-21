@@ -6,11 +6,27 @@ export type PaymentInput = {
   sessionId?: string;
   totalCents: number;
   playerCount: number;
+  memberIds?: string[];
   method: 'promptpay' | 'bank';
   recipient: string;
   bankCode?: string;
 };
-export type PaymentRequest = PaymentInput & { createdAt: string };
+export type PaymentMember = {
+  kind?: 'member' | 'guest';
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  status: 'active' | 'inactive';
+  amountCents: number;
+  paidAt: string | null;
+};
+export type PaymentRequest = PaymentInput & {
+  createdAt: string;
+  members?: PaymentMember[];
+  createdBy?: string | null;
+  creatorName?: string | null;
+};
 export const digits = (value: string) => value.replace(/[\s-]/g, '');
 export function recipientError(
   method: string,
@@ -46,4 +62,19 @@ export function paymentPayload(payment: PaymentInput, amountCents: number) {
   if (payment.method === 'bank') builder.bankAccount(payment.bankCode!, digits(payment.recipient));
   else builder.promptpay(digits(payment.recipient));
   return builder.amount(amountCents, { fromSatang: true }).build();
+}
+
+export function membershipSummary(payments: PaymentRequest[]) {
+  const members = new Map<string, boolean>();
+  let outstandingCents = 0;
+  for (const payment of payments)
+    for (const member of payment.members || []) {
+      members.set(member.id, (members.get(member.id) ?? true) && !!member.paidAt);
+      if (!member.paidAt) outstandingCents += member.amountCents;
+    }
+  return {
+    count: members.size,
+    paid: [...members.values()].filter(Boolean).length,
+    outstandingCents,
+  };
 }

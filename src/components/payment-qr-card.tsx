@@ -1,3 +1,4 @@
+import { Spinner } from './ui/spinner';
 import { formatSatang as money, formatSessionDate } from '../lib/format';
 import { useEffect, useRef, useState } from 'react';
 import { Download, Share2 } from 'lucide-react';
@@ -10,6 +11,8 @@ import { paymentPayload, type PaymentRequest } from '../lib/payments';
 import type { Session } from '../lib/store';
 
 type Props = {
+  demo?: boolean;
+  coveredNames?: string[];
   payment: PaymentRequest;
   session?: Session;
   amountCents: number;
@@ -17,7 +20,15 @@ type Props = {
   onError: (message: string) => void;
 };
 
-export function PaymentQRCard({ payment, session, amountCents, count, onError }: Props) {
+export function PaymentQRCard({
+  payment,
+  session,
+  amountCents,
+  count,
+  onError,
+  coveredNames,
+  demo = false,
+}: Props) {
   const qr = useRef<HTMLDivElement>(null);
   const background = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
@@ -53,13 +64,21 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
   const date = session ? formatSessionDate(session.date) : '';
   const round = session?.name || 'รอบเล่น';
   const heading = payment.method === 'promptpay' ? 'PromptPay' : 'QR Payment';
+  const amountLabel = coveredNames ? 'ยอดชำระรวมที่เลือก' : 'ยอดชำระต่อคน';
   const details = [
+    ...(demo ? [['ประเภท', 'ตัวอย่าง · ชำระเงินจริงไม่ได้']] : []),
     ['รอบเล่น', round],
     ['วันที่', date],
     ['ยอดรวมทั้งหมด', `฿${money(payment.totalCents)}`],
     ['หารทั้งหมด', `${payment.playerCount} คน`],
-    ['ยอดชำระต่อคน', `฿${money(amountCents)}`],
-    ...(count !== payment.playerCount ? [['QR ยอดนี้สำหรับ', `${count} คน`]] : []),
+    [amountLabel, `฿${money(amountCents)}`],
+    ...(coveredNames
+      ? [
+          ['ชำระสำหรับ', `${coveredNames.length} คน`],
+          ...coveredNames.map((name, index) => [`ผู้เล่น ${index + 1}`, name]),
+        ]
+      : []),
+    ...(!coveredNames && count !== payment.playerCount ? [['QR ยอดนี้สำหรับ', `${count} คน`]] : []),
   ];
 
   async function download() {
@@ -127,7 +146,11 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
       ctx.textAlign = 'center';
       ctx.fillStyle = '#c4d5df';
       ctx.font = '400 22px Kanit';
-      ctx.fillText('สแกนเพื่อชำระค่าเล่นแบดมินตัน', 360, 244);
+      ctx.fillText(
+        demo ? 'ตัวอย่าง · ใช้ชำระเงินไม่ได้' : 'สแกนเพื่อชำระค่าเล่นแบดมินตัน',
+        360,
+        244,
+      );
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(image, 144, 270, 432, 432);
       ctx.fillStyle = '#e9ff74';
@@ -135,7 +158,7 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
       ctx.fillText(`฿${money(amountCents)}`, 360, 760);
       ctx.fillStyle = '#b0c2cd';
       ctx.font = '400 20px Kanit';
-      ctx.fillText('ยอดชำระต่อคน', 360, 799);
+      ctx.fillText(amountLabel, 360, 799);
       ctx.strokeStyle = '#ffffff30';
       ctx.beginPath();
       ctx.moveTo(48, 828);
@@ -226,10 +249,12 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
           ) : (
             <strong className="promptpay-bank-heading">{heading}</strong>
           )}
-          <p className="promptpay-caption">สแกนเพื่อชำระค่าเล่นแบดมินตัน</p>
+          <p className="promptpay-caption">
+            {demo ? 'ตัวอย่าง · ใช้ชำระเงินไม่ได้' : 'สแกนเพื่อชำระค่าเล่นแบดมินตัน'}
+          </p>
           <div className="qr-paper" ref={qr}>
             <QRCodeSVG
-              value={paymentPayload(payment, amountCents)}
+              value={demo ? 'IBADZ_DEMO_NOT_FOR_PAYMENT' : paymentPayload(payment, amountCents)}
               size={432}
               level="M"
               fgColor="#e9ff74"
@@ -239,7 +264,7 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
             />
           </div>
           <strong className="promptpay-amount">฿{money(amountCents)}</strong>
-          <span className="promptpay-caption">ยอดชำระต่อคน</span>
+          <span className="promptpay-caption">{amountLabel}</span>
           <dl className="promptpay-details">
             {details.map(([label, value]) => (
               <div key={label}>
@@ -254,7 +279,8 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
         </div>
       </div>
       <Button className="primary qr-download" disabled={downloading} onClick={download}>
-        <Download size={16} /> {downloading ? 'กำลังบันทึก…' : 'บันทึก QR เป็นรูปภาพ'}
+        {downloading ? <Spinner aria-hidden="true" /> : <Download size={16} />}{' '}
+        {downloading ? 'กำลังบันทึก…' : 'บันทึก QR เป็นรูปภาพ'}
       </Button>
       <Dialog
         open={!!preview}
@@ -272,12 +298,13 @@ export function PaymentQRCard({ payment, session, amountCents, count, onError }:
               <img
                 className="qr-save-image"
                 src={preview.url}
-                alt={`QR ${round} ยอดต่อคน ${money(amountCents)} บาท พร้อมรายละเอียดค่าใช้จ่าย`}
+                alt={`QR ${round} ${amountLabel} ${money(amountCents)} บาท พร้อมรายละเอียดค่าใช้จ่าย`}
               />
               <div className="qr-save-actions">
                 {preview.canShare && (
                   <Button className="primary" disabled={sharing} onClick={shareImage}>
-                    <Share2 size={16} /> {sharing ? 'กำลังเปิดเมนูแชร์…' : 'แชร์ / บันทึกรูปภาพ'}
+                    {sharing ? <Spinner aria-hidden="true" /> : <Share2 size={16} />}{' '}
+                    {sharing ? 'กำลังเปิดเมนูแชร์…' : 'แชร์ / บันทึกรูปภาพ'}
                   </Button>
                 )}
                 <Button className="outline" asChild>

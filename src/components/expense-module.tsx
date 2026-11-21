@@ -1,5 +1,21 @@
-import { useState } from 'react';
-import { Plus, Users, Wallet, ScanLine, Pencil, Trash2 } from 'lucide-react';
+import { CollectionPaymentItem } from './collection-payment-item';
+import { demoExpenses } from '../lib/demo-expenses';
+import { DuePaymentItem } from './due-payment-item';
+import { paymentView } from '../lib/payment-selection';
+import { GuestPlayerList } from './guest-player-list';
+import { activityPlayers } from '../lib/players';
+import { GuestPlayerInput } from './guest-player-input';
+import { ContentRegion } from './content-region';
+import { PaginationControls } from './pagination-controls';
+import { usePagination } from '../hooks/use-pagination';
+import { Spinner } from './ui/spinner';
+import { LoadingStatus } from './loading-status';
+import { api } from '../lib/api';
+import type { Player } from '../lib/players';
+import { Checkbox } from './ui/checkbox';
+import { PaymentMemberList } from './payment-member-list';
+import { useEffect, useState } from 'react';
+import { Plus, Users, Wallet, ScanLine, Pencil, Trash2, ChevronDown } from 'lucide-react';
 import { PaymentQRCard } from './payment-qr-card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,7 +23,6 @@ import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { SectionHeading } from './section-heading';
-import { SessionPicker } from './session-picker';
 import { RequiredMark } from './required-mark';
 import { formatSatang as money } from '../lib/format';
 import { ValidatedForm } from './validated-form';
@@ -22,6 +37,11 @@ import {
 } from '../lib/payments';
 import { uid, type Session, type Expense } from '../lib/store';
 type Props = {
+  demo?: boolean;
+  loading?: boolean;
+  canManage: boolean;
+  currentUserId: string;
+  onPaid: (paymentId: string, memberId: string, paid: boolean) => Promise<boolean>;
   sessions: Session[];
   session?: Session;
   selected: string;
@@ -33,11 +53,78 @@ type Props = {
   saving: boolean;
   onError: (message: string) => void;
 };
-export default function ExpenseModule({
+export default function ExpenseModule(props: Props) {
+  const [preview, setPreview] = useState(false);
+  const [examples, setExamples] = useState(() => demoExpenses(props.currentUserId));
+  const [selectedExample, setSelectedExample] = useState(examples[0].id);
+  return (
+    <>
+      <div className="expense-demo-toggle">
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (!preview) {
+              setExamples(demoExpenses(props.currentUserId));
+              setSelectedExample('demo-session-0');
+            }
+            setPreview((value) => !value);
+          }}
+        >
+          {preview ? 'กลับรายการจริง' : 'ดูรายการจำลอง'}
+        </Button>
+      </div>
+      {preview && (
+        <p className="expense-demo-banner">
+          ข้อมูลตัวอย่างสำหรับดูหน้าจอ · ไม่ใช่รายการเงินจริง และ QR ใช้ชำระเงินไม่ได้
+        </p>
+      )}
+      <ExpenseContent
+        key={preview ? 'demo' : 'real'}
+        {...props}
+        {...(preview
+          ? {
+              demo: true,
+              loading: false,
+              saving: false,
+              canManage: true,
+              sessions: examples,
+              session: examples.find((item) => item.id === selectedExample),
+              selected: selectedExample,
+              onSelect: setSelectedExample,
+              onPaid: async (paymentId: string, memberId: string, paid: boolean) => {
+                setExamples((current) =>
+                  current.map((round) => ({
+                    ...round,
+                    paymentRequests: round.paymentRequests?.map((payment) =>
+                      payment.id !== paymentId
+                        ? payment
+                        : {
+                            ...payment,
+                            members: payment.members?.map((member) =>
+                              member.id !== memberId
+                                ? member
+                                : { ...member, paidAt: paid ? new Date().toISOString() : null },
+                            ),
+                          },
+                    ),
+                  })),
+                );
+                return true;
+              },
+            }
+          : {})}
+      />
+    </>
+  );
+}
+function ExpenseContent({
+  demo = false,
+  loading = false,
+  canManage,
+  currentUserId,
+  onPaid,
   sessions,
   session,
-  selected,
-  onSelect,
   onCreate,
   onEdit,
   onDelete,
@@ -45,6 +132,7 @@ export default function ExpenseModule({
   saving,
   onError,
 }: Props) {
+  const [view, setView] = useState<'due' | 'collect'>('due');
   const [open, setOpen] = useState(false);
   const [draftId, setDraftId] = useState('');
   const [editing, setEditing] = useState<PaymentRequest | null>(null);
@@ -55,166 +143,287 @@ export default function ExpenseModule({
     title: string;
     totalCents: number;
   } | null>(null);
-  const payments = session?.paymentRequests || [];
+  const [directory, setDirectory] = useState<Player[]>([]);
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let mounted = true;
+    setMemberIds(editing?.members?.map((member) => member.id) || []);
+    setLoadingMembers(true);
+    void api
+      .players()
+      .then((result) => {
+        if (mounted)
+          setDirectory(
+            activityPlayers(result.players, editing?.members?.map((member) => member.id) || []),
+          );
+      })
+      .catch((error) => {
+        if (mounted) onError(error.message);
+      })
+      .finally(() => {
+        if (mounted) setLoadingMembers(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [open, editing?.id]);
+  const manages = (payment: PaymentRequest) => canManage || payment.createdBy === currentUserId;
+  const paymentSessions = new Map(
+    sessions.flatMap((round) =>
+      (round.paymentRequests || []).map((payment) => [payment.id, round] as const),
+    ),
+  );
+  const sourcePayments = sessions.flatMap((round) => round.paymentRequests || []);
+  const payments = paymentView(sourcePayments, currentUserId, view, canManage);
+  const paymentPages = usePagination(payments, 10, view);
   return (
     <>
       <SectionHeading
         title="ค่าใช้จ่ายและหารเงิน"
         eyebrow="SPLIT & PAY"
         action={
-          <Button
-            className="primary"
-            onClick={() => {
-              setEditing(null);
-              setDraftId(uid());
-              setOpen(true);
-            }}
-          >
-            <Plus size={16} /> เพิ่มรายการ
-          </Button>
+          !demo &&
+          view === 'collect' && (
+            <Button
+              className="primary"
+              onClick={() => {
+                setEditing(null);
+                setDraftId(uid());
+                setOpen(true);
+              }}
+            >
+              <Plus size={16} />
+              เพิ่มรายการเรียกเก็บ
+            </Button>
+          )
         }
       />
-      {sessions.length > 0 && (
-        <SessionPicker
-          sessions={sessions}
-          value={selected}
-          onValueChange={onSelect}
-          ariaLabel="เลือกรอบค่าใช้จ่าย"
-          summary={`${payments.length} รายการ`}
-        />
-      )}
-      {payments.length ? (
-        <div className="payment-list">
-          {payments.map((payment) => (
-            <Card key={payment.id} className="panel payment-card">
-              <div className="payment-summary">
-                <div>
-                  <span className="eyebrow cyan">PAYMENT REQUEST</span>
-                  <h3>ค่าเล่นแบดมินตัน</h3>
-                  <span className="muted">
-                    {new Date(payment.createdAt).toLocaleString('th-TH', {
-                      timeZone: 'Asia/Bangkok',
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </span>
-                </div>
-                <div className="payment-summary-actions">
-                  <div className="payment-total">
-                    <small>ยอดรวม</small>
-                    <strong>฿{money(payment.totalCents)}</strong>
-                  </div>
+      <div className="expense-view-tabs" role="tablist" aria-label="รายการค่าใช้จ่าย">
+        <Button
+          id="expense-tab-due"
+          role="tab"
+          aria-controls="expense-view-panel"
+          aria-selected={view === 'due'}
+          variant="outline"
+          onClick={() => setView('due')}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+              setView('collect');
+              document.getElementById('expense-tab-collect')?.focus();
+            }
+          }}
+        >
+          ที่ต้องจ่าย
+        </Button>
+        <Button
+          id="expense-tab-collect"
+          role="tab"
+          aria-controls="expense-view-panel"
+          aria-selected={view === 'collect'}
+          variant="outline"
+          onClick={() => setView('collect')}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+              setView('due');
+              document.getElementById('expense-tab-due')?.focus();
+            }
+          }}
+        >
+          เรียกเก็บ
+        </Button>
+      </div>
+      <div id="expense-view-panel" role="tabpanel" aria-labelledby={`expense-tab-${view}`}>
+        {view === 'due' && <p className="payment-note">รายการที่คุณยังค้างชำระจากทุกรอบเล่น</p>}
+        <ContentRegion loading={loading} empty={!payments.length}>
+          {payments.length ? (
+            <div className="payment-list">
+              {paymentPages.items.map((payment) =>
+                view === 'due' ? (
+                  <DuePaymentItem
+                    key={payment.id}
+                    payment={payment}
+                    session={paymentSessions.get(payment.id)}
+                    userId={currentUserId}
+                    demo={demo}
+                    onError={onError}
+                  />
+                ) : (
+                  <CollectionPaymentItem
+                    key={payment.id}
+                    payment={payment}
+                    session={paymentSessions.get(payment.id) || session}
+                  >
+                    <Card className="panel payment-card">
+                      <div className="payment-summary">
+                        <div>
+                          <span className="eyebrow cyan">PAYMENT REQUEST</span>
+                          <h3>ค่าเล่นแบดมินตัน</h3>
+                          {payment.creatorName && (
+                            <p className="payment-creator">
+                              {payment.createdBy === currentUserId
+                                ? 'คุณเป็นผู้เรียกเก็บ'
+                                : `เรียกเก็บโดย ${payment.creatorName}`}
+                            </p>
+                          )}
+                          <span className="muted">
+                            {new Date(payment.createdAt).toLocaleString('th-TH', {
+                              timeZone: 'Asia/Bangkok',
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </span>
+                        </div>
+                        <div className="payment-summary-actions">
+                          <div className="payment-total">
+                            <small>ยอดรวม</small>
+                            <strong>฿{money(payment.totalCents)}</strong>
+                          </div>
+                          {!demo && manages(payment) && (
+                            <div className="expense-actions">
+                              <Button
+                                variant="ghost"
+                                disabled={saving}
+                                aria-label="แก้ไขรายการค่าใช้จ่าย"
+                                onClick={() => {
+                                  setEditing(payment);
+                                  setDraftId(payment.id);
+                                  setOpen(true);
+                                }}
+                              >
+                                <Pencil size={15} /> แก้ไข
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                className="expense-delete"
+                                disabled={saving}
+                                aria-label="ลบรายการค่าใช้จ่าย"
+                                onClick={() =>
+                                  setDeleting({
+                                    kind: 'payment',
+                                    id: payment.id,
+                                    title: 'ค่าเล่นแบดมินตัน',
+                                    totalCents: payment.totalCents,
+                                  })
+                                }
+                              >
+                                <Trash2 size={15} /> ลบ
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="payment-meta">
+                        <span>
+                          <Users size={16} /> {payment.playerCount} คน
+                        </span>
+                        <span>
+                          <Wallet size={16} />
+                          {payment.method === 'bank'
+                            ? banks.find((b) => b.code === payment.bankCode)?.name
+                            : 'พร้อมเพย์'}
+                        </span>
+                        <span className="recipient-number">{payment.recipient}</span>
+                      </div>
+                      <section
+                        className="collection-payment-details"
+                        aria-label="จัดการสถานะการชำระเงิน"
+                      >
+                        <PaymentMemberList
+                          payment={payment}
+                          canManage={manages(payment)}
+                          saving={saving}
+                          onPaid={(memberId, paid) => onPaid(payment.id, memberId, paid)}
+                        />
+                      </section>
+                      <details className="collection-qr-details">
+                        <summary>
+                          <span>ดู QR สำหรับรับชำระเงิน</span>
+                          <ChevronDown size={16} aria-hidden="true" />
+                        </summary>
+                        <div className="payment-qr-groups">
+                          {paymentGroups(payment.totalCents, payment.playerCount).map((group) => (
+                            <PaymentQRCard
+                              demo={demo}
+                              key={group.amountCents}
+                              payment={payment}
+                              session={paymentSessions.get(payment.id) || session}
+                              amountCents={group.amountCents}
+                              count={group.count}
+                              onError={onError}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                      <p className="payment-note">
+                        ตรวจสอบชื่อผู้รับและยอดเงินในแอปธนาคารก่อนยืนยันโอน
+                      </p>
+                      {payment.method === 'bank' && (
+                        <p className="payment-note">
+                          หากแอปธนาคารไม่รองรับ QR บัญชีนี้ ให้โอนด้วยเลขบัญชีด้านบน
+                        </p>
+                      )}
+                    </Card>
+                  </CollectionPaymentItem>
+                ),
+              )}
+            </div>
+          ) : (
+            <Card className="panel payment-empty">
+              <ScanLine size={40} />
+              <h3>{view === 'due' ? 'ไม่มีรายการค้างชำระ' : 'ยังไม่มีรายการเรียกเก็บ'}</h3>
+              <p>
+                {view === 'due'
+                  ? 'รายการที่ยังไม่จ่ายจากทุกรอบเล่นจะแสดงที่นี่'
+                  : 'กดเพิ่มรายการเรียกเก็บเพื่อเริ่มต้น'}
+              </p>
+            </Card>
+          )}
+        </ContentRegion>
+        <PaginationControls {...paymentPages} disabled={saving} label="รายการ" />
+        {view === 'collect' && !!session?.expenses.length && (
+          <Card className="panel legacy-expenses">
+            <h3>ค่าใช้จ่ายเดิม</h3>
+            {session.expenses.map((e) => (
+              <div key={e.id}>
+                <span>{e.title}</span>
+                <span>฿{money(Math.round(e.amount * 100))}</span>
+                {canManage && (
                   <div className="expense-actions">
                     <Button
                       variant="ghost"
                       disabled={saving}
-                      aria-label="แก้ไขรายการค่าใช้จ่าย"
-                      onClick={() => {
-                        setEditing(payment);
-                        setDraftId(payment.id);
-                        setOpen(true);
-                      }}
+                      aria-label={`แก้ไข ${e.title}`}
+                      onClick={() => setLegacyEditing(e)}
                     >
-                      <Pencil size={15} /> แก้ไข
+                      <Pencil size={15} />
+                      แก้ไข
                     </Button>
                     <Button
                       variant="ghost"
-                      className="expense-delete"
                       disabled={saving}
-                      aria-label="ลบรายการค่าใช้จ่าย"
+                      className="expense-delete"
+                      aria-label={`ลบ ${e.title}`}
                       onClick={() =>
                         setDeleting({
-                          kind: 'payment',
-                          id: payment.id,
-                          title: 'ค่าเล่นแบดมินตัน',
-                          totalCents: payment.totalCents,
+                          kind: 'legacy',
+                          id: e.id,
+                          title: e.title,
+                          totalCents: Math.round(e.amount * 100),
                         })
                       }
                     >
-                      <Trash2 size={15} /> ลบ
+                      <Trash2 size={15} />
+                      ลบ
                     </Button>
                   </div>
-                </div>
+                )}
               </div>
-              <div className="payment-meta">
-                <span>
-                  <Users size={16} /> {payment.playerCount} คน
-                </span>
-                <span>
-                  <Wallet size={16} />
-                  {payment.method === 'bank'
-                    ? banks.find((b) => b.code === payment.bankCode)?.name
-                    : 'พร้อมเพย์'}
-                </span>
-                <span className="recipient-number">{payment.recipient}</span>
-              </div>
-              <div className="payment-qr-groups">
-                {paymentGroups(payment.totalCents, payment.playerCount).map((group) => (
-                  <PaymentQRCard
-                    key={group.amountCents}
-                    payment={payment}
-                    session={session}
-                    amountCents={group.amountCents}
-                    count={group.count}
-                    onError={onError}
-                  />
-                ))}
-              </div>
-              <p className="payment-note">ตรวจสอบชื่อผู้รับและยอดเงินในแอปธนาคารก่อนยืนยันโอน</p>
-              {payment.method === 'bank' && (
-                <p className="payment-note">
-                  หากแอปธนาคารไม่รองรับ QR บัญชีนี้ ให้โอนด้วยเลขบัญชีด้านบน
-                </p>
-              )}
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className="panel payment-empty">
-          <ScanLine size={40} />
-          <h3>หารค่าเล่น แล้วสแกนจ่ายได้เลย</h3>
-          <p>เพิ่มยอดรวม จำนวนผู้เล่น และข้อมูลรับเงินเพื่อสร้าง QR ชำระต่อคน</p>
-        </Card>
-      )}
-      {!!session?.expenses.length && (
-        <Card className="panel legacy-expenses">
-          <h3>ค่าใช้จ่ายเดิม</h3>
-          {session.expenses.map((e) => (
-            <div key={e.id}>
-              <span>{e.title}</span>
-              <span>฿{money(Math.round(e.amount * 100))}</span>
-              <div className="expense-actions">
-                <Button
-                  variant="ghost"
-                  disabled={saving}
-                  aria-label={`แก้ไข ${e.title}`}
-                  onClick={() => setLegacyEditing(e)}
-                >
-                  <Pencil size={15} />
-                  แก้ไข
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={saving}
-                  className="expense-delete"
-                  aria-label={`ลบ ${e.title}`}
-                  onClick={() =>
-                    setDeleting({
-                      kind: 'legacy',
-                      id: e.id,
-                      title: e.title,
-                      totalCents: Math.round(e.amount * 100),
-                    })
-                  }
-                >
-                  <Trash2 size={15} />
-                  ลบ
-                </Button>
-              </div>
-            </div>
-          ))}
-        </Card>
-      )}
+            ))}
+          </Card>
+        )}
+      </div>
       <Dialog
         open={open}
         onOpenChange={(value) => {
@@ -223,13 +432,17 @@ export default function ExpenseModule({
       >
         <DialogContent className="modal" aria-describedby={undefined}>
           <span className="eyebrow cyan">SPLIT THE BILL</span>
-          <DialogTitle>{editing ? 'แก้ไขรายการ' : 'เพิ่มรายการ'}</DialogTitle>
+          <DialogTitle>{editing ? 'แก้ไขรายการเรียกเก็บ' : 'เรียกเก็บเงิน'}</DialogTitle>
           <ValidatedForm
             key={editing?.id || draftId}
             onValidationError={onError}
             onSubmit={async (e) => {
               e.preventDefault();
-              if (saving) return;
+              if (saving || loadingMembers) return;
+              if (!memberIds.length) {
+                onError('กรุณาเลือกผู้ร่วมจ่ายอย่างน้อย 1 คน');
+                return;
+              }
               const form = e.currentTarget;
               const f = new FormData(form);
               const recipient = digits(String(f.get('recipient') || ''));
@@ -251,9 +464,12 @@ export default function ExpenseModule({
               }
               const input: PaymentInput = {
                 id: draftId,
-                sessionId: session?.id,
+                sessionId: editing
+                  ? paymentSessions.get(editing.id)?.id || editing.sessionId
+                  : session?.id,
                 totalCents,
                 playerCount: count,
+                memberIds,
                 method,
                 ...(method === 'bank' && editing?.bankCode ? { bankCode: editing.bankCode } : {}),
                 recipient,
@@ -287,7 +503,8 @@ export default function ExpenseModule({
                 จำนวนผู้เล่น <RequiredMark />
                 <Input
                   name="players"
-                  defaultValue={editing?.playerCount}
+                  value={memberIds.length}
+                  readOnly
                   type="number"
                   min="1"
                   max="500"
@@ -297,6 +514,70 @@ export default function ExpenseModule({
                 />
               </Label>
             </div>
+            <fieldset className="billing-member-picker" disabled={saving || loadingMembers}>
+              <legend>
+                ผู้เล่นที่ร่วมจ่าย <RequiredMark />
+              </legend>
+              {loadingMembers ? (
+                <LoadingStatus>กำลังโหลดรายชื่อ…</LoadingStatus>
+              ) : (
+                directory
+                  .filter(
+                    (member) =>
+                      member.kind !== 'guest' &&
+                      (member.status === 'active' || memberIds.includes(member.id)),
+                  )
+                  .map((member) => (
+                    <Label key={member.id} className="billing-member-option">
+                      <Checkbox
+                        checked={memberIds.includes(member.id)}
+                        onCheckedChange={(checked) =>
+                          setMemberIds((ids) =>
+                            checked === true
+                              ? [...ids, member.id]
+                              : ids.filter((id) => id !== member.id),
+                          )
+                        }
+                      />
+                      <span>
+                        {member.name}
+                        {member.status === 'inactive' && <small> · inactive</small>}
+                      </span>
+                    </Label>
+                  ))
+              )}
+              {!loadingMembers &&
+                !directory.some((member) => member.status === 'active') &&
+                !memberIds.length && (
+                  <p>ยังไม่มีรายชื่อที่พร้อมใช้งาน สามารถเพิ่มผู้เล่นรับเชิญด้านล่างได้</p>
+                )}
+            </fieldset>
+            <GuestPlayerList
+              players={directory.filter((player) => player.kind === 'guest')}
+              selected={memberIds}
+              disabled={saving || loadingMembers}
+              onToggle={(id, checked) =>
+                setMemberIds((ids) =>
+                  checked ? [...new Set([...ids, id])] : ids.filter((value) => value !== id),
+                )
+              }
+              onRemove={(id) => {
+                setDirectory((members) => members.filter((member) => member.id !== id));
+                setMemberIds((ids) => ids.filter((value) => value !== id));
+              }}
+            />
+            <GuestPlayerInput
+              disabled={saving || loadingMembers}
+              onError={onError}
+              onAdded={(player) => {
+                setDirectory((members) =>
+                  members.some((member) => member.id === player.id)
+                    ? members
+                    : [...members, player],
+                );
+                setMemberIds((ids) => [...new Set([...ids, player.id])]);
+              }}
+            />
             <Label>
               {editing?.method === 'bank' ? 'เลขบัญชีธนาคาร' : 'เลขพร้อมเพย์'} <RequiredMark />
               <Input
@@ -317,7 +598,8 @@ export default function ExpenseModule({
               {editing?.method === 'bank' ? 'ข้อมูลบัญชีเดิม' : 'ใช้หมายเลขที่ผูกพร้อมเพย์ไว้แล้ว'}{' '}
               · หารยอดรวมให้ครบทุกสตางค์
             </p>
-            <Button className="primary submit" type="submit" disabled={saving}>
+            <Button className="primary submit" type="submit" disabled={saving || loadingMembers}>
+              {saving && <Spinner aria-hidden="true" />}
               {saving
                 ? 'กำลังบันทึก…'
                 : editing
@@ -360,6 +642,7 @@ export default function ExpenseModule({
                 if (ok) setDeleting(null);
               }}
             >
+              {saving && <Spinner aria-hidden="true" />}
               {saving ? 'กำลังลบ…' : 'ยืนยันลบรายการ'}
             </Button>
           </div>
@@ -412,6 +695,7 @@ export default function ExpenseModule({
               />
             </Label>
             <Button type="submit" className="primary submit" disabled={saving}>
+              {saving && <Spinner aria-hidden="true" />}
               {saving ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}
             </Button>
           </ValidatedForm>

@@ -4,6 +4,7 @@ import { formatSessionDate } from '../lib/format';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 
 type Props = {
+  loading?: boolean;
   sessions: Session[];
   value: string;
   onValueChange: (id: string) => void;
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function SessionPicker({
+  loading = false,
   sessions,
   value,
   onValueChange,
@@ -24,7 +26,7 @@ export function SessionPicker({
     <div className="session-bar">
       <span>{label}</span>
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="session-select-trigger" aria-label={ariaLabel}>
+        <SelectTrigger loading={loading} className="session-select-trigger" aria-label={ariaLabel}>
           <SelectValue placeholder="เลือกรอบเล่น" />
         </SelectTrigger>
         <SelectContent className="session-select-menu" sideOffset={6}>

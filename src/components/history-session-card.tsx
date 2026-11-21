@@ -1,3 +1,4 @@
+import { membershipSummary } from '../lib/payments';
 import { ChevronRight, Clock3 } from 'lucide-react';
 import type { Session } from '../lib/store';
 import { formatMoney as money } from '../lib/format';
@@ -7,6 +8,7 @@ import { Card } from './ui/card';
 type Props = { session: Session; onOpenExpenses: (id: string) => void };
 
 export function HistorySessionCard({ session: s, onOpenExpenses }: Props) {
+  const tracked = membershipSummary(s.paymentRequests || []);
   return (
     <Card className="panel history-card">
       <div className="panel-head">
@@ -45,7 +47,8 @@ export function HistorySessionCard({ session: s, onOpenExpenses }: Props) {
         <p className="empty-text">ยังไม่มีผลการแข่งขันในรอบนี้</p>
       )}
       <div className="hint">
-        {s.members.length} คน · ชำระแล้ว {s.members.filter((m) => m.paid).length} คน ·{' '}
+        {tracked.count || s.members.length} คน · ชำระครบ{' '}
+        {tracked.count ? tracked.paid : s.members.filter((m) => m.paid).length} คน ·{' '}
         {s.expenses.length + (s.paymentRequests?.length || 0)} รายการค่าใช้จ่าย
       </div>
     </Card>
