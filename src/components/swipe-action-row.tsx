@@ -78,7 +78,7 @@ export function SwipeActionRow({
           disabled={!open || disabled}
           tabIndex={open ? 0 : -1}
           aria-label={actionLabel}
-          title="ลบทัวร์นาเมนต์"
+          title={actionLabel}
           onClick={onAction}
         >
           <Trash2 size={20} aria-hidden="true" />
