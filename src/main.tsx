@@ -536,38 +536,30 @@ function App({
 function AuthRoot() {
   const [freshLogin, setFreshLogin] = useState(false);
   const [user, setUser] = useState<Player | null>(null);
-  const [checking, setChecking] = useState(true);
   const [error, setError] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [retryVersion, setRetryVersion] = useState(0);
+  const authVersion = useRef(0);
   useEffect(() => {
     let mounted = true;
+    const version = authVersion.current;
     let pending = false;
     let needsRetry = true;
     let timer: number | undefined;
-    setChecking(true);
     async function checkSession() {
-      if (pending || !mounted) return;
+      if (pending || !mounted || version !== authVersion.current) return;
       pending = true;
       window.clearTimeout(timer);
       try {
         const result = await api.me();
-        if (!mounted) return;
+        if (!mounted || version !== authVersion.current) return;
         setUser(result.user);
-        setAuthError('');
-        setChecking(false);
         needsRetry = false;
       } catch (error) {
-        if (!mounted) return;
+        if (!mounted || version !== authVersion.current) return;
         if (error instanceof ApiError && error.status === 401 && error.code === 'SESSION_INVALID') {
           setUser(null);
-          setAuthError('');
           setError('');
-          setChecking(false);
           needsRetry = false;
         } else {
-          setAuthError('กำลังเตรียมข้อมูล');
-          setChecking(false);
           timer = window.setTimeout(() => {
             void checkSession();
           }, 5000);
@@ -581,12 +573,11 @@ function AuthRoot() {
     };
     void checkSession();
     const expired = () => {
+      authVersion.current++;
       needsRetry = false;
       window.clearTimeout(timer);
       setUser(null);
       localStorage.removeItem('rally-online-v1');
-      setAuthError('');
-      setChecking(false);
       setError('การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง');
     };
     window.addEventListener('online', reconnect);
@@ -597,14 +588,13 @@ function AuthRoot() {
       window.removeEventListener('online', reconnect);
       window.removeEventListener('ibadz:unauthorized', expired);
     };
-  }, [retryVersion]);
+  }, []);
   if (!user)
     return (
       <LoginScreen
-        checking={checking || !!authError}
-        error={authError || error}
-        onRetry={() => setRetryVersion((version) => version + 1)}
+        error={error}
         onLogin={async (username, password) => {
+          authVersion.current++;
           setError('');
           try {
             await api.login(username, password);
@@ -626,6 +616,7 @@ function AuthRoot() {
       freshLogin={freshLogin}
       onLogout={async () => {
         await api.logout();
+        authVersion.current++;
         localStorage.removeItem('rally-online-v1');
         setUser(null);
         setError('');
