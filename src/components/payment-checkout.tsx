@@ -13,13 +13,12 @@ import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 type Props = {
-  demo?: boolean;
   payment: PaymentRequest;
   session?: Session;
   userId: string;
   onError: (message: string) => void;
 };
-export function PaymentCheckout({ payment, session, userId, onError, demo = false }: Props) {
+export function PaymentCheckout({ payment, session, userId, onError }: Props) {
   const own = payment.members?.find((member) => member.id === userId && !member.paidAt);
   const friends = (payment.members || []).filter(
     (member) => member.id !== userId && !member.paidAt,
@@ -99,7 +98,6 @@ export function PaymentCheckout({ payment, session, userId, onError, demo = fals
             ))}
           </div>
           <PaymentQRCard
-            demo={demo}
             payment={payment}
             session={session}
             amountCents={total}

@@ -1,5 +1,4 @@
 import { CollectionPaymentItem } from './collection-payment-item';
-import { demoExpenses } from '../lib/demo-expenses';
 import { DuePaymentItem } from './due-payment-item';
 import { paymentView } from '../lib/payment-selection';
 import { GuestPlayerList } from './guest-player-list';
@@ -37,7 +36,6 @@ import {
 } from '../lib/payments';
 import { uid, type Session, type Expense } from '../lib/store';
 type Props = {
-  demo?: boolean;
   loading?: boolean;
   canManage: boolean;
   currentUserId: string;
@@ -53,72 +51,7 @@ type Props = {
   saving: boolean;
   onError: (message: string) => void;
 };
-export default function ExpenseModule(props: Props) {
-  const [preview, setPreview] = useState(false);
-  const [examples, setExamples] = useState(() => demoExpenses(props.currentUserId));
-  const [selectedExample, setSelectedExample] = useState(examples[0].id);
-  return (
-    <>
-      <div className="expense-demo-toggle">
-        <Button
-          variant="outline"
-          onClick={() => {
-            if (!preview) {
-              setExamples(demoExpenses(props.currentUserId));
-              setSelectedExample('demo-session-0');
-            }
-            setPreview((value) => !value);
-          }}
-        >
-          {preview ? 'กลับรายการจริง' : 'ดูรายการจำลอง'}
-        </Button>
-      </div>
-      {preview && (
-        <p className="expense-demo-banner">
-          ข้อมูลตัวอย่างสำหรับดูหน้าจอ · ไม่ใช่รายการเงินจริง และ QR ใช้ชำระเงินไม่ได้
-        </p>
-      )}
-      <ExpenseContent
-        key={preview ? 'demo' : 'real'}
-        {...props}
-        {...(preview
-          ? {
-              demo: true,
-              loading: false,
-              saving: false,
-              canManage: true,
-              sessions: examples,
-              session: examples.find((item) => item.id === selectedExample),
-              selected: selectedExample,
-              onSelect: setSelectedExample,
-              onPaid: async (paymentId: string, memberId: string, paid: boolean) => {
-                setExamples((current) =>
-                  current.map((round) => ({
-                    ...round,
-                    paymentRequests: round.paymentRequests?.map((payment) =>
-                      payment.id !== paymentId
-                        ? payment
-                        : {
-                            ...payment,
-                            members: payment.members?.map((member) =>
-                              member.id !== memberId
-                                ? member
-                                : { ...member, paidAt: paid ? new Date().toISOString() : null },
-                            ),
-                          },
-                    ),
-                  })),
-                );
-                return true;
-              },
-            }
-          : {})}
-      />
-    </>
-  );
-}
-function ExpenseContent({
-  demo = false,
+export default function ExpenseModule({
   loading = false,
   canManage,
   currentUserId,
@@ -184,7 +117,6 @@ function ExpenseContent({
         title="ค่าใช้จ่ายและหารเงิน"
         eyebrow="SPLIT & PAY"
         action={
-          !demo &&
           view === 'collect' && (
             <Button
               className="primary"
@@ -246,7 +178,6 @@ function ExpenseContent({
                     payment={payment}
                     session={paymentSessions.get(payment.id)}
                     userId={currentUserId}
-                    demo={demo}
                     onError={onError}
                   />
                 ) : (
@@ -280,7 +211,7 @@ function ExpenseContent({
                             <small>ยอดรวม</small>
                             <strong>฿{money(payment.totalCents)}</strong>
                           </div>
-                          {!demo && manages(payment) && (
+                          {manages(payment) && (
                             <div className="expense-actions">
                               <Button
                                 variant="ghost"
@@ -294,22 +225,24 @@ function ExpenseContent({
                               >
                                 <Pencil size={15} /> แก้ไข
                               </Button>
-                              <Button
-                                variant="ghost"
-                                className="expense-delete"
-                                disabled={saving}
-                                aria-label="ลบรายการค่าใช้จ่าย"
-                                onClick={() =>
-                                  setDeleting({
-                                    kind: 'payment',
-                                    id: payment.id,
-                                    title: 'ค่าเล่นแบดมินตัน',
-                                    totalCents: payment.totalCents,
-                                  })
-                                }
-                              >
-                                <Trash2 size={15} /> ลบ
-                              </Button>
+                              {payment.createdBy === currentUserId && (
+                                <Button
+                                  variant="ghost"
+                                  className="expense-delete"
+                                  disabled={saving}
+                                  aria-label="ลบรายการค่าใช้จ่าย"
+                                  onClick={() =>
+                                    setDeleting({
+                                      kind: 'payment',
+                                      id: payment.id,
+                                      title: 'ค่าเล่นแบดมินตัน',
+                                      totalCents: payment.totalCents,
+                                    })
+                                  }
+                                >
+                                  <Trash2 size={15} /> ลบ
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -345,7 +278,6 @@ function ExpenseContent({
                         <div className="payment-qr-groups">
                           {paymentGroups(payment.totalCents, payment.playerCount).map((group) => (
                             <PaymentQRCard
-                              demo={demo}
                               key={group.amountCents}
                               payment={payment}
                               session={paymentSessions.get(payment.id) || session}
