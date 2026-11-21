@@ -5109,3 +5109,30 @@ textarea::placeholder {
 .collection-qr-details[open] > summary > svg {
   transform: rotate(180deg);
 }
+
+.reset-password-panel {
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+}
+.reset-password-panel form {
+  display: grid;
+  gap: 16px;
+}
+.reset-password-panel label {
+  display: block;
+}
+.reset-password-panel .player-password {
+  margin-top: 8px;
+}
+.reset-password-panel input[readonly] {
+  background: #ffffff05;
+  color: #a8bdc6;
+  cursor: default;
+}
+.mobile-sidebar-account .sidebar-reset-password {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: 16px;
+  gap: 12px;
+}

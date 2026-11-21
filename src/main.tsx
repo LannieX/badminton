@@ -1,3 +1,4 @@
+import { ResetPasswordModule } from './components/reset-password-module';
 import { ContentRegion } from './components/content-region';
 import { LoadingStatus } from './components/loading-status';
 import TournamentModule from './components/tournament-module';
@@ -363,6 +364,17 @@ function App({
               }));
               setSelectedTournament(tournament.id);
               setTab('score');
+            }}
+          />
+        )}
+        {tab === 'reset-password' && (
+          <ResetPasswordModule
+            user={user}
+            onError={showError}
+            onSuccess={(message) => {
+              setNoticeType('success');
+              setNotice(message);
+              setNoticeKey((key) => key + 1);
             }}
           />
         )}

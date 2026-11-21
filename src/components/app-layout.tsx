@@ -18,6 +18,7 @@ import {
   Menu,
   ChevronRight,
   ChevronDown,
+  KeyRound,
   Pencil,
   Trophy,
 } from 'lucide-react';
@@ -34,7 +35,7 @@ const navigation = [
   ['players', 'ผู้เล่น', Users],
   ['history', 'ประวัติ', History],
 ] as const;
-export type AppTab = (typeof navigation)[number][0] | 'profile';
+export type AppTab = (typeof navigation)[number][0] | 'profile' | 'reset-password';
 type Props = {
   tab: AppTab;
   onTabChange: (tab: AppTab) => void;
@@ -61,7 +62,11 @@ export function AppLayout({
   const [logoutOpen, setLogoutOpen] = useState(false);
   const visibleNavigation = navigation;
   const currentLabel =
-    tab === 'profile' ? 'ข้อมูลของฉัน' : navigation.find(([key]) => key === tab)?.[1];
+    tab === 'reset-password'
+      ? 'รีเซ็ตรหัสผ่าน'
+      : tab === 'profile'
+        ? 'ข้อมูลของฉัน'
+        : navigation.find(([key]) => key === tab)?.[1];
   const connectionLabel = saving
     ? 'กำลังบันทึก…'
     : connection === 'online'
@@ -159,6 +164,14 @@ export function AppLayout({
                 </div>
                 <span className="sidebar-role">{user.role}</span>
               </Button>
+              <Button
+                className="sidebar-reset-password"
+                variant="outline"
+                onClick={() => selectTab('reset-password')}
+              >
+                <KeyRound size={16} />
+                รีเซ็ตรหัสผ่าน
+              </Button>
               <Button className="sidebar-logout" variant="ghost" onClick={requestLogout}>
                 <LogOut size={18} aria-hidden="true" />
                 ออกจากระบบ
@@ -217,6 +230,10 @@ export function AppLayout({
               <DropdownMenuItem onSelect={() => selectTab('profile')}>
                 <Pencil size={16} aria-hidden="true" />
                 แก้ไขข้อมูลของฉัน
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => selectTab('reset-password')}>
+                <KeyRound size={16} />
+                รีเซ็ตรหัสผ่าน
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="account-logout-item" onSelect={requestLogout}>

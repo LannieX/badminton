@@ -51,7 +51,9 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
     if (
       response.status === 401 &&
       result?.code === 'SESSION_INVALID' &&
-      (!path.startsWith('/auth/') || (path === '/auth/me' && method !== 'GET'))
+      (!path.startsWith('/auth/') ||
+        (path === '/auth/me' && method !== 'GET') ||
+        path === '/auth/reset-password')
     )
       window.dispatchEvent(new Event('ibadz:unauthorized'));
     if (!response.ok)
@@ -69,6 +71,8 @@ async function request<T>(path: string, method = 'GET', body?: unknown): Promise
   }
 }
 export const api = {
+  resetPassword: (input: { username: string; password: string; confirmPassword: string }) =>
+    request<{ ok: boolean }>('/auth/reset-password', 'POST', input),
   createGuest: (id: string, name: string) =>
     request<{ player: Player }>('/guests', 'POST', { id, name }),
   deleteTournament: (id: string) =>
