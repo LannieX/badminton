@@ -607,7 +607,9 @@ function AuthRoot() {
         onLogin={async (username, password) => {
           setError('');
           try {
-            const result = await api.login(username, password);
+            await api.login(username, password);
+            // Confirm the browser sends the session cookie before showing the signed-in app.
+            const result = await api.me();
             setFreshLogin(true);
             setUser(result.user);
           } catch (error) {

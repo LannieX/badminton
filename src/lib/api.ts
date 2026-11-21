@@ -28,6 +28,12 @@ function userMessage(status: number, message: unknown): string {
   return 'ยังทำรายการไม่ได้ กรุณาลองอีกครั้ง';
 }
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  const configuredBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+  // Sessions use first-party cookies; external API URLs must go through the hosting rewrite.
+  const API_BASE_URL =
+    new URL(configuredBase, window.location.origin).origin === window.location.origin
+      ? configuredBase
+      : '/api';
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 20000);
   try {
