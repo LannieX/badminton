@@ -1,3 +1,4 @@
+import type { ServiceSetup } from './service';
 import type { PaymentRequest } from './payments';
 export type Match = {
   id: string;
@@ -19,6 +20,8 @@ export type Session = {
   members: { id: string; name: string; paid: boolean }[];
 };
 export type Active = {
+  tournamentId?: string;
+  tournamentGameId?: string;
   matchId?: string;
   sessionId: string;
   mode: string;
@@ -26,6 +29,7 @@ export type Active = {
   target: number;
   points: number[];
   swapped: boolean;
+  service?: ServiceSetup;
 };
 export type Data = { sessions: Session[]; active: Active | null; selected: string };
 export const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });

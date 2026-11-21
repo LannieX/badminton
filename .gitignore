@@ -9,3 +9,16 @@ dist
 /*-preview.png
 /qr-preview.*
 .DS_Store
+
+# Local Worker secrets and deployment state
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.wrangler/
+.vercel/
+
+# Private key files
+*.pem
+*.key
+*.p12
+*.pfx

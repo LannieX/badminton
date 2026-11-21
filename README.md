@@ -14,6 +14,8 @@ npm run build
 
 ## Features
 
+- Player management backed by Neon PostgreSQL: create, edit, activate/deactivate and explicitly search by name/username. Images upload through the backend to Cloudinary; only image URLs/public IDs are stored in the database. Passwords are hashed server-side. New members default to viewer; roles are admin/viewer. Login uses server-side sessions in HttpOnly cookies. Viewers read shared data and can edit their own name, username and avatar; admins manage members and active/inactive status. Member directory uses shared responsive business cards. Expenses select members and track payment confirmations per person.
+
 - Create dated playing sessions; switch between sessions.
 - Singles/doubles, optional team names (defaults: เหย้า / เยือน), custom target, single game with automatic win-by-two deuce and no score cap.
 - Tap to score, undo, switch visual sides, cancel, save completed matches.
@@ -28,6 +30,8 @@ npm run build
 - `src/components/section-heading.tsx`: page heading with an optional action.
 - `src/components/history-session-card.tsx`: reusable session summary and match history card.
 - `src/components/toast-notification.tsx`: accessible notifications, including fullscreen portals.
+- `src/components/profile-form.tsx`: shared responsive editor for self profile and admin member creation/editing; account controls appear only in member mode.
+- `src/components/search-bar.tsx`: shadcn search form with explicit Search/Clear actions.
 - `src/components/required-mark.tsx`: shared required-field indicator.
 - `src/lib/format.ts`: shared money, satang and session-date formatting.
 - `src/components/ui/hero.tsx`: reusable reference-inspired hero.
@@ -36,7 +40,7 @@ npm run build
 - `src/main.tsx`: app UI and workflows.
 - `components.json`: shadcn-compatible aliases and CSS configuration. UI components belong in `src/components/ui` (aliased as `@/components/ui`) to keep reusable primitives separate from screens.
 
-The API lives in the sibling `badminton-services` repository. No login or hosted deployment is included. Mesh shader animation needs WebGL; the CSS gradient remains behind it. Reduced-motion users receive the static background.
+The API lives in the sibling `badminton-services` repository. First-admin setup and backend deployment are documented in the API repository DEPLOY.md. The frontend uses the same-origin /api proxy for authenticated requests. Mesh shader animation needs WebGL; the CSS gradient remains behind it. Reduced-motion users receive the static background.
 
 ## UI system
 
@@ -66,7 +70,7 @@ Then run `npm run dev` in this frontend repository. Vite proxies `/api` to `http
 
 History reloads from PostgreSQL on startup, window focus, and every 15 seconds. Score tapping stays local; finishing a match saves to the API with a stable match UUID for safe retries. Expenses and participant mutations wait for the API before updating the UI; stale concurrent edits show a toast and refresh instead of overwriting another device's change.
 
-Legacy `rally-v1` data is preserved. If old local history has not been imported, the History screen offers **นำเข้าประวัติเดิม**. Import merges missing IDs without overwriting existing entries. The online read cache and active game are stored separately under `rally-online-v1`.
+Legacy `rally-v1` data is preserved, but the legacy import action is no longer shown. The online read cache and active game are stored under `rally-online-v1`.
 
 For production hosting, proxy `/api` to the backend service (or configure an equivalent same-origin API). Vite's dev proxy is not bundled into static build output. The shared LAN version has no user accounts yet.
 
@@ -81,3 +85,21 @@ Payload generation uses `@thai-qr-payment/payload` and rendering uses `qrcode.re
 The header uses `public/images/racket-head-short-shaft.png`; the score setup screen uses `public/images/racket-cutout.png`. Asset source information is in `public/images/README.md`.
 
 New payment requests use PromptPay only: the expense form contains total, player count, and PromptPay number. Bank/method selectors are removed. Previously stored bank-account requests remain readable; no historical payment records are deleted.
+
+## Paging and validation
+
+Member directory uses server pagination (10/page). History, expense requests and payment participants also default to 10 items per page. Shared pagination controls support mobile. Search submits explicitly; changing pages uses the last submitted search. Errors use toast feedback. Passwords require at least 8 characters on creation/change; leaving an optional edit password blank preserves it.
+
+## Tournaments
+
+Admins and viewers select active attendees before creating fixed doubles teams manually or with random pairing. Attendance must be an even 4–64 people; no attendee is silently dropped. Choose 10/11/15/16/custom points (1–999), then confirm the pair preview to create a single round robin. Every team plays N−1 matches, including when odd team counts need byes.
+
+Members can view schedules/standings and create tournaments; admins start pending matches on the existing scoreboard and can delete tournaments after confirmation. Deletion preserves previously saved daily match history. Results return to the tournament and also appear in daily history. Same-game retries do not duplicate results. Team roster and target remain fixed; service order can still be configured. Tournament lists and schedules paginate at 10 items per page.
+
+### Guest players and collection requests
+
+Any signed-in member can create a payment request and select registered members or guest players. Guests need only a name and have no login account. Guests are scoped to the current activity: new expense requests and tournaments start with registered members only. Editing an existing request retains its original guests. The regular scoreboard accepts free-text guest names and clears them for a new game. Bill creators can edit/delete their own requests and confirm payments; admins can manage all requests. Other members can view them. Payment confirmations are manual, not bank verification.
+
+The expense page defaults to the payable tab, showing only requests where the current member still owes money across all dates. Payment status for other members appears in an expandable section on the collection tab. Paying for friends remains optional within your own outstanding requests: select one or more unpaid participants to generate an exact combined QR amount; saved QR images include their names. The collection tab lists requests created by the signed-in member (admins may manage all). Collectors manually confirm received payments per participant after checking the transfer. Generating a QR never marks a bill as paid.
+
+Both admin and viewer can use the standard scoreboard and save completed ordinary games. Tournament result submission/deletion, member administration and manual session management remain admin-only. Both roles may create tournaments, guests and collection requests, manage their own collections and edit their own profile.

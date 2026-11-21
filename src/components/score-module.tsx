@@ -1,3 +1,9 @@
+import { ScorePlayerSetup } from './score-player-setup';
+import { scorePlayerSetup, type ScorePlayerSlots } from '../lib/score-players';
+import type { Player } from '../lib/players';
+import { Spinner } from './ui/spinner';
+import { serviceState } from '../lib/service';
+import { ServiceIndicator } from './service-indicator';
 import { RequiredMark } from './required-mark';
 import { ValidatedForm } from './validated-form';
 import { useState, useEffect, useRef } from 'react';
@@ -21,13 +27,23 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
   const nativeEntered = useRef(false);
   const [custom, setCustom] = useState('');
   const [choice, setChoice] = useState('');
-  const [mode, setMode] = useState('double');
+  const [mode, setMode] = useState('');
+  const [usePlayers, setUsePlayers] = useState<boolean | null>(null);
+  const [playerSlots, setPlayerSlots] = useState<ScorePlayerSlots>([
+    { value: '', name: '' },
+    { value: '', name: '' },
+    { value: '', name: '' },
+    { value: '', name: '' },
+  ]);
+  const [directory, setDirectory] = useState<Player[]>([]);
   const [settings, setSettings] = useState(false);
+  const [settingsMode, setSettingsMode] = useState('double');
   const [reset, setReset] = useState(false);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const scores = active ? score(active.points) : [0, 0];
   const won = active ? winner(active) : null;
   const deuce = active ? deuceProgress(active) : null;
+  const service = active ? serviceState(active) : null;
   const signature = active ? active.points.join('') : '';
   const confirm = won !== null && dismissed !== signature;
   useEffect(() => {
@@ -69,6 +85,17 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
   }, [expanded, settings, reset, confirm]);
   useEffect(() => {
     if (active) return;
+    setUsePlayers(null);
+    setMode('');
+    setChoice('');
+    setCustom('');
+    setPlayerSlots([
+      { value: '', name: '' },
+      { value: '', name: '' },
+      { value: '', name: '' },
+      { value: '', name: '' },
+    ]);
+    setDirectory([]);
     setExpanded(false);
     if (nativeEntered.current && document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => {});
@@ -99,8 +126,23 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
     } // Keep the viewport-sized board as fallback.
   }
   function start(target: number) {
+    if (!mode) {
+      onError('กรุณาเลือกประเภทการแข่งขัน');
+      return;
+    }
+    if (usePlayers === null) {
+      onError('กรุณาเลือกรูปแบบชื่อผู้เล่น');
+      return;
+    }
     if (!Number.isInteger(target) || target < 1 || target > 999) {
       onError('กรุณากรอกคะแนนเป็นจำนวนเต็มระหว่าง 1–999');
+      return;
+    }
+    let setup;
+    try {
+      setup = scorePlayerSetup(mode, usePlayers, playerSlots, directory);
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'กรุณาตรวจสอบผู้เล่น');
       return;
     }
     setDismissed(null);
@@ -108,7 +150,7 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
       matchId: uid(),
       sessionId: '',
       mode,
-      names: ['เจ้าบ้าน', 'ผู้มาเยือน'],
+      ...setup,
       target,
       points: [],
       swapped: false,
@@ -150,6 +192,14 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
               ))}
             </div>
           </div>
+          <ScorePlayerSetup
+            mode={mode}
+            enabled={usePlayers}
+            onEnabled={setUsePlayers}
+            slots={playerSlots}
+            onChange={setPlayerSlots}
+            onDirectory={setDirectory}
+          />
           <div className="target-options">
             {[10, 11, 15, 16].map((n) => (
               <Button key={n} variant="outline" onClick={() => start(n)}>
@@ -229,6 +279,7 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
                 onClick={() => change((a) => ({ ...a, points: [...a.points, i] }))}
               >
                 <span className="score-team-name">{active.names[i]}</span>
+                {service && <ServiceIndicator service={service} side={i} />}
                 <strong>{scores[i]}</strong>
                 {deuce && (
                   <span className="deuce-indicator" aria-hidden="true">
@@ -264,8 +315,15 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
             >
               <ArrowLeftRight /> สลับฝั่ง
             </Button>
-            <Button variant="outline" disabled={saving} onClick={() => setSettings(true)}>
-              <Settings2 /> ตั้งค่า / ชื่อทีม
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setSettingsMode(active.mode);
+                setSettings(true);
+              }}
+            >
+              <Settings2 /> ตั้งค่า / ชื่อทีม / ผู้เสิร์ฟ
             </Button>
             <Button variant="outline" disabled={saving} onClick={() => setReset(true)}>
               เริ่มใหม่
@@ -296,7 +354,11 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
             </b>{' '}
             {active?.names[1]}
           </p>
-          <p>สิ้นสุดการแข่งขันเพื่อบันทึกเข้าก๊วนวันนี้ หรือกลับไปแก้คะแนนหากกดผิด</p>
+          <p>
+            {active?.tournamentId
+              ? 'ยืนยันผลเพื่อบันทึกในตารางทัวร์นาเมนต์ หรือกลับไปแก้คะแนนหากกดผิด'
+              : 'สิ้นสุดการแข่งขันเพื่อบันทึกเข้าก๊วนวันนี้ หรือกลับไปแก้คะแนนหากกดผิด'}
+          </p>
           <div className="finish-actions">
             <Button
               className="primary"
@@ -305,6 +367,7 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
                 onFinish();
               }}
             >
+              {saving && <Spinner aria-hidden="true" />}
               {saving ? 'กำลังบันทึก…' : 'สิ้นสุดการแข่งขัน'}
             </Button>
             <Button variant="outline" disabled={saving} onClick={() => setDismissed(signature)}>
@@ -314,8 +377,8 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
         </DialogContent>
       </Dialog>
       <Dialog open={settings} onOpenChange={setSettings}>
-        <DialogContent className="modal" aria-describedby={undefined}>
-          <DialogTitle>ตั้งค่า / ชื่อทีม</DialogTitle>
+        <DialogContent className="modal service-settings-modal" aria-describedby={undefined}>
+          <DialogTitle>ตั้งค่า / ชื่อทีม / ผู้เสิร์ฟ</DialogTitle>
           <ValidatedForm
             onValidationError={onError}
             onSubmit={(e) => {
@@ -323,30 +386,110 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
               const f = new FormData(e.currentTarget);
               change((a) => ({
                 ...a,
-                names: [
-                  String(f.get('home')).trim() || 'เจ้าบ้าน',
-                  String(f.get('away')).trim() || 'ผู้มาเยือน',
-                ],
-                mode: String(f.get('mode')),
+                names: a.tournamentId
+                  ? a.names
+                  : [
+                      String(f.get('home')).trim() || 'เจ้าบ้าน',
+                      String(f.get('away')).trim() || 'ผู้มาเยือน',
+                    ],
+                mode: a.tournamentId ? 'double' : String(f.get('mode')),
+                service: {
+                  firstSide: Number(f.get('firstSide')) as 0 | 1,
+                  firstRight: [Number(f.get('right0')), Number(f.get('right1'))] as [0 | 1, 0 | 1],
+                  players: [0, 1].map((team) =>
+                    [0, 1].map((player) =>
+                      String(
+                        f.get(`player-${team}-${player}`) || a.service?.players[team][player] || '',
+                      ).trim(),
+                    ),
+                  ) as [[string, string], [string, string]],
+                },
               }));
               setSettings(false);
             }}
           >
             <Label>
               เจ้าบ้าน
-              <Input name="home" defaultValue={active?.names[0]} maxLength={60} />
+              <Input
+                name="home"
+                disabled={!!active?.tournamentId}
+                defaultValue={active?.names[0]}
+                maxLength={60}
+              />
             </Label>
             <Label>
               ผู้มาเยือน
-              <Input name="away" defaultValue={active?.names[1]} maxLength={60} />
+              <Input
+                name="away"
+                disabled={!!active?.tournamentId}
+                defaultValue={active?.names[1]}
+                maxLength={60}
+              />
             </Label>
             <Label>
               ประเภท
-              <NativeSelect name="mode" defaultValue={active?.mode}>
+              <NativeSelect
+                name="mode"
+                disabled={!!active?.tournamentId}
+                defaultValue={active?.mode}
+                onChange={(event) => setSettingsMode(event.target.value)}
+              >
                 <NativeSelectOption value="double">ประเภทคู่</NativeSelectOption>
                 <NativeSelectOption value="single">ประเภทเดี่ยว</NativeSelectOption>
               </NativeSelect>
             </Label>
+            <fieldset className="service-settings">
+              <legend>ผู้เล่นและลำดับเสิร์ฟเริ่มเกม</legend>
+              <p className="hint">
+                ตั้งค่าตอนเริ่มเกม ระบบคำนวณผู้เสิร์ฟต่อจากแต้มทั้งหมด
+                ช่องซ้าย–ขวามองจากผู้เล่นที่หันเข้าหาตาข่าย
+              </p>
+              <Label>
+                ฝ่ายเสิร์ฟก่อน
+                <NativeSelect
+                  name="firstSide"
+                  defaultValue={String(active?.service?.firstSide || 0)}
+                >
+                  <NativeSelectOption value="0">
+                    {active?.names[0] || 'เจ้าบ้าน'}
+                  </NativeSelectOption>
+                  <NativeSelectOption value="1">
+                    {active?.names[1] || 'ผู้มาเยือน'}
+                  </NativeSelectOption>
+                </NativeSelect>
+              </Label>
+              {settingsMode === 'double' &&
+                [0, 1].map((team) => (
+                  <div className="service-team-settings" key={team}>
+                    {settingsMode === 'double' && active && (
+                      <div className="form-grid">
+                        {[0, 1].map((player) => (
+                          <Label key={player}>
+                            {active.names[team]} · ผู้เล่น {player + 1}
+                            <Input
+                              name={`player-${team}-${player}`}
+                              disabled={!!active?.tournamentId}
+                              maxLength={60}
+                              defaultValue={active.service?.players[team][player] || ''}
+                              placeholder={`${active.names[team]} ${player + 1}`}
+                            />
+                          </Label>
+                        ))}
+                      </div>
+                    )}
+                    <Label>
+                      {active?.names[team]} · คนเสิร์ฟ/รับแรก (เริ่มช่องขวา)
+                      <NativeSelect
+                        name={`right${team}`}
+                        defaultValue={String(active?.service?.firstRight[team] || 0)}
+                      >
+                        <NativeSelectOption value="0">ผู้เล่น 1</NativeSelectOption>
+                        <NativeSelectOption value="1">ผู้เล่น 2</NativeSelectOption>
+                      </NativeSelect>
+                    </Label>
+                  </div>
+                ))}
+            </fieldset>
             <Button className="primary" type="submit">
               บันทึก
             </Button>
@@ -356,7 +499,11 @@ export default function ScoreModule({ active, onChange, onFinish, onError, savin
       <Dialog open={reset} onOpenChange={setReset}>
         <DialogContent className="modal" aria-describedby={undefined}>
           <DialogTitle>เริ่มเกมใหม่?</DialogTitle>
-          <p>คะแนนเกมนี้จะไม่ถูกบันทึก กลับไปเลือกคะแนนเป้าหมายใหม่</p>
+          <p>
+            {active?.tournamentId
+              ? 'คะแนนแมตช์นี้จะถูกล้าง และกลับไปตารางแข่ง'
+              : 'คะแนนเกมนี้จะไม่ถูกบันทึก กลับไปเลือกคะแนนเป้าหมายใหม่'}
+          </p>
           <div className="finish-actions">
             <Button variant="outline" onClick={() => setReset(false)}>
               กลับไปเล่นต่อ
