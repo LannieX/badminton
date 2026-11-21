@@ -11,7 +11,6 @@ import { paymentPayload, type PaymentRequest } from '../lib/payments';
 import type { Session } from '../lib/store';
 
 type Props = {
-  demo?: boolean;
   coveredNames?: string[];
   payment: PaymentRequest;
   session?: Session;
@@ -27,7 +26,6 @@ export function PaymentQRCard({
   count,
   onError,
   coveredNames,
-  demo = false,
 }: Props) {
   const qr = useRef<HTMLDivElement>(null);
   const background = useRef<HTMLDivElement>(null);
@@ -66,7 +64,6 @@ export function PaymentQRCard({
   const heading = payment.method === 'promptpay' ? 'PromptPay' : 'QR Payment';
   const amountLabel = coveredNames ? 'ยอดชำระรวมที่เลือก' : 'ยอดชำระต่อคน';
   const details = [
-    ...(demo ? [['ประเภท', 'ตัวอย่าง · ชำระเงินจริงไม่ได้']] : []),
     ['รอบเล่น', round],
     ['วันที่', date],
     ['ยอดรวมทั้งหมด', `฿${money(payment.totalCents)}`],
@@ -146,11 +143,7 @@ export function PaymentQRCard({
       ctx.textAlign = 'center';
       ctx.fillStyle = '#c4d5df';
       ctx.font = '400 22px Kanit';
-      ctx.fillText(
-        demo ? 'ตัวอย่าง · ใช้ชำระเงินไม่ได้' : 'สแกนเพื่อชำระค่าเล่นแบดมินตัน',
-        360,
-        244,
-      );
+      ctx.fillText('สแกนเพื่อชำระค่าเล่นแบดมินตัน', 360, 244);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(image, 144, 270, 432, 432);
       ctx.fillStyle = '#e9ff74';
@@ -249,12 +242,10 @@ export function PaymentQRCard({
           ) : (
             <strong className="promptpay-bank-heading">{heading}</strong>
           )}
-          <p className="promptpay-caption">
-            {demo ? 'ตัวอย่าง · ใช้ชำระเงินไม่ได้' : 'สแกนเพื่อชำระค่าเล่นแบดมินตัน'}
-          </p>
+          <p className="promptpay-caption">สแกนเพื่อชำระค่าเล่นแบดมินตัน</p>
           <div className="qr-paper" ref={qr}>
             <QRCodeSVG
-              value={demo ? 'IBADZ_DEMO_NOT_FOR_PAYMENT' : paymentPayload(payment, amountCents)}
+              value={paymentPayload(payment, amountCents)}
               size={432}
               level="M"
               fgColor="#e9ff74"

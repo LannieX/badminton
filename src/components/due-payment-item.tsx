@@ -11,10 +11,9 @@ type Props = {
   payment: PaymentRequest;
   session?: Session;
   userId: string;
-  demo?: boolean;
   onError: (message: string) => void;
 };
-export function DuePaymentItem({ payment, session, userId, demo, onError }: Props) {
+export function DuePaymentItem({ payment, session, userId, onError }: Props) {
   const [open, setOpen] = useState(false);
   const member = payment.members?.find((person) => person.id === userId);
   if (!member) return null;
@@ -73,7 +72,6 @@ export function DuePaymentItem({ payment, session, userId, demo, onError }: Prop
               payment={payment}
               session={session}
               userId={userId}
-              demo={demo}
               onError={onError}
             />
           )}
