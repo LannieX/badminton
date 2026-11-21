@@ -1,7 +1,6 @@
 import { useErrorToast } from '../hooks/use-error-toast';
 import { ToastNotification } from './toast-notification';
 import { Spinner } from './ui/spinner';
-import { LoadingStatus } from './loading-status';
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import AppBackground from './app-background';
@@ -15,40 +14,15 @@ import { ValidatedForm } from './validated-form';
 
 type Props = {
   onLogin: (username: string, password: string) => Promise<void>;
-  checking: boolean;
   error: string;
-  onRetry?: () => void;
 };
-export function LoginScreen({ onLogin, checking, error, onRetry }: Props) {
+export function LoginScreen({ onLogin, error }: Props) {
   const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(false);
   const toast = useErrorToast();
   useEffect(() => {
-    if (error && !checking) toast.showError(error);
-  }, [error, checking, toast.showError]);
-  if (checking)
-    return (
-      <>
-        <AppBackground />
-        <main className="login-page">
-          <Card className="panel login-checking-card">
-            <LoadingStatus>กำลังเตรียมข้อมูล…</LoadingStatus>
-            {error && (
-              <>
-                <Button
-                  className="auth-retry-button"
-                  variant="outline"
-                  type="button"
-                  onClick={onRetry}
-                >
-                  ลองอีกครั้ง
-                </Button>
-              </>
-            )}
-          </Card>
-        </main>
-      </>
-    );
+    if (error) toast.showError(error);
+  }, [error, toast.showError]);
   return (
     <>
       <AppBackground />
