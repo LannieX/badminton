@@ -4573,7 +4573,8 @@ textarea::placeholder {
   width: 100%;
   touch-action: pan-y;
 }
-.swipe-action-front .tournament-list-card {
+.swipe-action-front .tournament-list-card,
+.swipe-action-front .due-payment-item {
   margin: 0;
   background: #0b1721;
 }

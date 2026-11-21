@@ -66,6 +66,7 @@ export default function ExpenseModule({
   onError,
 }: Props) {
   const [view, setView] = useState<'due' | 'collect'>('due');
+  const [revealed, setRevealed] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [draftId, setDraftId] = useState('');
   const [editing, setEditing] = useState<PaymentRequest | null>(null);
@@ -182,6 +183,23 @@ export default function ExpenseModule({
                   />
                 ) : (
                   <CollectionPaymentItem
+                    canDelete={payment.createdBy === currentUserId}
+                    revealed={revealed === payment.id}
+                    saving={saving}
+                    onReveal={(open) =>
+                      setRevealed((current) =>
+                        open ? payment.id : current === payment.id ? null : current,
+                      )
+                    }
+                    onDelete={() => {
+                      setRevealed(null);
+                      setDeleting({
+                        kind: 'payment',
+                        id: payment.id,
+                        title: paymentSessions.get(payment.id)?.name || 'ค่าเล่นแบดมินตัน',
+                        totalCents: payment.totalCents,
+                      });
+                    }}
                     key={payment.id}
                     payment={payment}
                     session={paymentSessions.get(payment.id) || session}
@@ -225,24 +243,6 @@ export default function ExpenseModule({
                               >
                                 <Pencil size={15} /> แก้ไข
                               </Button>
-                              {payment.createdBy === currentUserId && (
-                                <Button
-                                  variant="ghost"
-                                  className="expense-delete"
-                                  disabled={saving}
-                                  aria-label="ลบรายการค่าใช้จ่าย"
-                                  onClick={() =>
-                                    setDeleting({
-                                      kind: 'payment',
-                                      id: payment.id,
-                                      title: 'ค่าเล่นแบดมินตัน',
-                                      totalCents: payment.totalCents,
-                                    })
-                                  }
-                                >
-                                  <Trash2 size={15} /> ลบ
-                                </Button>
-                              )}
                             </div>
                           )}
                         </div>
