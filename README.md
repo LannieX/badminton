@@ -72,7 +72,7 @@ History reloads from PostgreSQL on startup, window focus, and every 15 seconds. 
 
 Legacy `rally-v1` data is preserved, but the legacy import action is no longer shown. The online read cache and active game are stored under `rally-online-v1`.
 
-For production hosting, proxy `/api` to the backend service (or configure an equivalent same-origin API). Vite's dev proxy is not bundled into static build output. The shared LAN version has no user accounts yet.
+For production hosting, proxy `/api` to the backend service (or configure an equivalent same-origin API). Vite's dev proxy is not bundled into static build output. Production Vercel deployments use the committed vercel.json rewrite to Workers. Set VITE_API_BASE_URL=/api (or leave it unset), then redeploy the frontend. Direct Workers URLs are normalized to /api to preserve first-party session cookies.
 
 ## Split-and-pay expenses
 

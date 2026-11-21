@@ -3,11 +3,15 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 
 const source = await readFile(new URL('../src/lib/api.ts', import.meta.url), 'utf8');
-const code = ts.transpileModule(source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-}).outputText;
+const code = ts.transpileModule(
+  source.replaceAll('import.meta.env.VITE_API_BASE_URL', 'globalThis.testApiBase'),
+  {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  },
+).outputText;
 let invalidations = 0;
 globalThis.window = {
+  location: { origin: 'https://ibadz.vercel.app' },
   setTimeout,
   clearTimeout,
   dispatchEvent: (event) => {
@@ -87,3 +91,22 @@ await assert.rejects(
   (error) => !error.message.includes('JSON'),
 );
 console.log('User-facing errors hide technical details and preserve useful validation messages.');
+
+for (const base of [
+  undefined,
+  '/api',
+  'https://ibadz-api.maruslamdevz.workers.dev/api',
+  'https://ibadz.vercel.app/api',
+]) {
+  globalThis.testApiBase = base;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(new URL(url, window.location.origin).origin, window.location.origin);
+    assert.equal(new URL(url, window.location.origin).pathname, '/api/auth/me');
+    assert.equal(options.credentials, 'same-origin');
+    return Response.json({ user: { id: 'example' } });
+  };
+  assert.equal((await api.me()).user.id, 'example');
+}
+console.log(
+  'Production cookie routing passed: direct Worker env values use the same-origin /api rewrite.',
+);
