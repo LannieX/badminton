@@ -336,7 +336,6 @@ function App({
             active={data.active}
             onError={showError}
             onStart={(tournament, game) => {
-              if (!canManage) return;
               if (data.active?.tournamentGameId === game.id) {
                 setTab('score');
                 return;

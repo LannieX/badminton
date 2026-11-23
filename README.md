@@ -94,7 +94,7 @@ Member directory uses server pagination (10/page). History, expense requests and
 
 Admins and viewers select active attendees before creating fixed doubles teams manually or with random pairing. Attendance must be an even 4–64 people; no attendee is silently dropped. Choose 10/11/15/16/custom points (1–999), then confirm the pair preview to create a single round robin. Every team plays N−1 matches, including when odd team counts need byes.
 
-Members can view schedules/standings and create tournaments; admins start pending matches on the existing scoreboard and can delete tournaments after confirmation. Deletion preserves previously saved daily match history. Results return to the tournament and also appear in daily history. Same-game retries do not duplicate results. Team roster and target remain fixed; service order can still be configured. Tournament lists and schedules paginate at 10 items per page.
+Members can view schedules/standings and create tournaments; both roles can start pending matches and save results on the scoreboard. Only admins can delete tournaments after confirmation. Deletion preserves previously saved daily match history. Results return to the tournament and also appear in daily history. Same-game retries do not duplicate results. Team roster and target remain fixed; service order can still be configured. Tournament lists and schedules paginate at 10 items per page.
 
 ### Guest players and collection requests
 
@@ -102,6 +102,6 @@ Any signed-in member can create a payment request and select registered members 
 
 The expense page defaults to the payable tab, showing only requests where the current member still owes money across all dates. Payment status for other members appears in an expandable section on the collection tab. Paying for friends remains optional within your own outstanding requests: select one or more unpaid participants to generate an exact combined QR amount; saved QR images include their names. The collection tab lists requests created by the signed-in member (admins may edit/confirm all; deletion is owner-only). Collectors manually confirm received payments per participant after checking the transfer. Generating a QR never marks a bill as paid.
 
-Both admin and viewer can use the standard scoreboard and save completed ordinary games. Tournament result submission/deletion, member administration and manual session management remain admin-only. Both roles may create tournaments, guests and collection requests, manage their own collections and edit their own profile.
+Both admin and viewer can use the standard scoreboard and save completed ordinary games. Both roles can submit tournament results; tournament deletion, member administration and manual session management remain admin-only. Both roles may create tournaments, guests and collection requests, manage their own collections and edit their own profile.
 
 Password reset is available from the account menu/sidebar. Viewers reset only their own username; admins may enter another member username. Both new password fields must match and contain at least eight characters. Passwords are hashed server-side; resetting revokes older sessions, retaining only the current session for self changes.

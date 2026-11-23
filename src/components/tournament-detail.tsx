@@ -10,11 +10,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 
 type Props = {
   tournament: Tournament;
-  canManage: boolean;
   active: Active | null;
   onStart: (t: Tournament, g: TournamentGame) => void;
 };
-export function TournamentDetail({ tournament, canManage, active, onStart }: Props) {
+export function TournamentDetail({ tournament, active, onStart }: Props) {
   const [round, setRound] = useState('all');
   const completed = tournament.games.filter((game) => game.scores).length;
   const rounds = [...new Set(tournament.games.map((game) => game.round))];
@@ -107,13 +106,11 @@ export function TournamentDetail({ tournament, canManage, active, onStart }: Pro
             <div className="tournament-game-team">{teamNames.get(game.teams[1])}</div>
             {game.scores ? (
               <span className="tournament-game-finished">จบแล้ว</span>
-            ) : canManage ? (
+            ) : (
               <Button variant="outline" onClick={() => onStart(tournament, game)}>
                 <Play size={14} />
                 {active?.tournamentGameId === game.id ? 'เล่นต่อ' : 'เริ่มแข่ง'}
               </Button>
-            ) : (
-              <span className="hint">รอแข่งขัน</span>
             )}
           </Card>
         ))}
