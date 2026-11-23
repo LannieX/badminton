@@ -131,7 +131,6 @@ export default function TournamentModule({
             <TournamentDetail
               key={detail.id}
               tournament={detail}
-              canManage={canManage}
               active={active}
               onStart={onStart}
             />
